@@ -3,3 +3,7 @@
 .RData
 .Ruserdata
 *.Rproj
+
+*.so
+*.o
+*.DS_Store
