@@ -13,7 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This tutorial is heavily based on Appendix S1 (Supporting Information) from Auger-Méthé, M., Newman, K., Cole, D., Empacher, F., Gryba, R., King, A. A., Leos-Barajas, V., Mills Flemming, J., Nielsen, A., Petris, G., and Thomas, L.. 2021. A guide to state–space modeling of ecological time series. Ecological Monographs 91(4):e01470. 10.1002/ecm.1470 (Open access,  https://doi.org/10.1002/ecm.1470). Please refer to the paper and tutorial for more in-depth information on state-space models and how to apply them to data using R.
 
-## Introducing the method with a simple univariate linear Gaussian state-space models
+# Introducing the method with a simple univariate linear Gaussian state-space models
+
+## Model
 
 We start by exploring a very simple SSM: a simple linear SSM with Normal distributions. This model is not linked to an ecological example; it's just a teaching tool. This linear Gaussian SSM
 consists of two equations for two time series.
@@ -46,3 +48,69 @@ and represents the evolution of the hidden state as a simple random walk. The ob
   \label{E.toy2p.o}
 \end{equation}
 where we assume that there is no systematic bias in the observation (i.e. we observed the state with some error but the observations are not systematically smaller or larger than the states).
+
+## Simulations
+
+Here, we simulate data using the linear Gaussian SSM described in Eqs. \ref{E.toy2p.p}-\ref{E.toy2p.o} from section \ref{LGSSMm} above. This is the simpler model where two of the parameters are fixed ($\alpha=\beta=1$).
+
+First, let us simulate the process for a time series of length 200 ($T=200$), with an additional time step for the state at $t=0$. To be consistent with the model description, we set to $z_0 = 0$. We choose the standard deviation of the process variation, $\sigma_p$, to be 0.1.
+
+```{r process.sim, tidy=FALSE}
+# Create a vector that will keep track of the states
+# It's of length T + 1 (+1 for t=0)
+# T is not a good name in R, because of T/F, so we use TT
+TT <- 200
+z <- numeric(TT + 1)
+# Standard deviation of the process variation
+sdp <- 0.1
+# Set the seed, so we can reproduce the results
+set.seed(553)
+# For-loop that simulates the state through time, using i instead of t,
+for(i in 1:TT){
+  # This is the process equation
+  z[i+1] <- z[i] + rnorm(1, 0, sdp)
+  # Note that this index is shifted compared to equation in text,
+  # because we assume the first value to be at time 0
+}
+```
+
+Let us plot the time series we have created.
+
+```{r process.sim.fig}
+plot(0:TT, z,
+     pch = 19, cex = 0.7, col="red", ty = "o", 
+     xlab = "t", ylab = expression(z[t]), las=1)
+```
+
+Second, let us simulate the observations. We set the standard deviation of the observation error $\sigma_o$ to 0.1.
+
+```{r obs.sim, tidy=FALSE}
+# Create a vector that will keep track of the observations
+# It's of length T
+y <- numeric(TT)
+# Standard deviation of the observation error
+sdo <- 0.1
+# For t=1, ... T, add measurement error
+# Remember that z[1] is t=0
+y <- z[2:(TT+1)] + rnorm(TT, 0, sdo)
+```
+
+Let us plot both the observations and the states. From now on, we are adding extra space on the y-axis to leave space for the legend. Note that the space we assigned may not work for all figure sizes.
+
+```{r obs.sim.fig, tidy=FALSE}
+plot(1:TT, y,
+     pch=3, cex = 0.8, col="blue", ty="o", lty = 3,
+     xlab = "t", ylab = expression(z[t]),
+     xlim = c(0,TT), ylim = c(min(y), max(y)+max(y)/5),
+     las = 1)
+points(0:TT, z,
+       pch = 19, cex = 0.7, col="red", ty = "o")
+legend("top",
+       legend = c("Obs.", "True states"),
+       pch = c(3, 19),
+       col = c("blue", "red"),
+       lty = c(3, 1),
+       horiz=TRUE, bty="n", cex=0.9)
+```
+
+With real data, we usually only have the observations, $y_t$, and do not know the true states, $z_t$. However, simulated data allow us to see the discrepancies between the observed values and the values for the process they represent.
