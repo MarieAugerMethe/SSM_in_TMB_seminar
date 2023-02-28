@@ -9,9 +9,14 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Info
+# Document info
 
 This tutorial is heavily based on Appendix S1 (Supporting Information) from Auger-Méthé, M., Newman, K., Cole, D., Empacher, F., Gryba, R., King, A. A., Leos-Barajas, V., Mills Flemming, J., Nielsen, A., Petris, G., and Thomas, L.. 2021. A guide to state–space modeling of ecological time series. Ecological Monographs 91(4):e01470. 10.1002/ecm.1470 (Open access,  https://doi.org/10.1002/ecm.1470). Please refer to the paper and tutorial for more in-depth information on state-space models and how to apply them to data using R.
+
+# Important installation info (to do before seminar!)
+
+Because `TMB` use C++ code, the installation of the package requires additional steps. The package is available on CRAN https://cran.r-project.org/web/packages/TMB/index.html, however your computer needs to be set up so you can compile the C++ code. You can find installation information at: https://github.com/kaskr/adcomp/wiki/Download. Briefly, if you are Mac user, you will need to install the Xcode developer tools (freely available via the App store). With older versions of Mac OS, you may run into problems with the Fortran compiler. For solutions, see the link above and this link https://mac.r-project.org/tools/. If you are a Windows user, you will need to install Rtools: https://cran.r-project.org/bin/windows/Rtools/. You can find guidelines on how to install `TMB` on a Windows machine here: https://github.com/kaskr/adcomp/wiki/Windows-installation.
+
 
 # Introducing the method with a simple univariate linear Gaussian state-space models
 
@@ -114,3 +119,111 @@ legend("top",
 ```
 
 With real data, we usually only have the observations, $y_t$, and do not know the true states, $z_t$. However, simulated data allow us to see the discrepancies between the observed values and the values for the process they represent.
+
+## Fitting the model using TMB
+
+In TMB you need to create a C++ file that computes the value of the negative log likelihood for your data and for a given set of parameter values. Then, you compile the C++ code using `TMB` and use that function in one of R's optimizers to find the minimum negative log likelihood. The beauty of `TMB` is that it uses the Laplace approximation to integrate over the states and computes the gradient efficiently, which speeds up the optimizing process.
+
+
+Assuming you have properly installed \texttt{TMB}, let's load it.
+
+```{R LoadTMB, message=FALSE}
+library(TMB)
+```
+
+Now, let us create the negative log-likelihood function that we will minimize (equivalent of maximizing the likelihood). We write this function in a special TMB C++ language. The code for the function needs to be save in a text file. We usually give it the extension .cpp. You can do this directly in R Studio. You write the code just as you would write a separate R script, but you save it as a .cpp file by giving it the .cpp extension.
+
+We name the file **toy2p.cpp** and it will contain the following code. Note that in C++, comments are preceded by \texttt{//} or contained within \texttt{/* */}. Also, as explained below, here the code is a little bit more complex than strictly necessary. We have included code that allow us to compute the one-step-ahead residuals and simulate from the model. While these features are not always necessary, they are key to model checking and thus we believe they should be part of all model fitting workflow.
+
+```{Rcpp toy2p.cpp, eval=FALSE}
+/*----------------------- SECTION A --------------------------*/
+// Link to the TMB package
+#include <TMB.hpp>
+
+/*----------------------- SECTION B --------------------------*/
+// Define main function
+template<class Type>
+Type objective_function<Type>::operator() ()
+{
+
+  /*----------------------- SECTION C --------------------------*/
+  // Specify the input data
+  DATA_VECTOR(y);
+
+  // For one-step-ahead residuals
+  DATA_VECTOR_INDICATOR(keep, y);
+
+  // Specify the parameters
+  PARAMETER(logSdP); // Log of st. dev. for the process variation
+  PARAMETER(logSdO); // Log of st. dev. for the observation error
+
+  // Specify the random effect/states
+  PARAMETER_VECTOR(z);
+
+  /*----------------------- SECTION D --------------------------*/
+  // Transform standard deviations
+  // exp(par) is a trick to make sure that the estimated sd > 0
+  Type sdp = exp(logSdP);
+  Type sdo = exp(logSdO);
+
+  /*----------------------- SECTION E --------------------------*/
+  // Define the variable that will keep track of
+  // the negative log-likelihood (nll)
+  Type nll = 0.0;
+
+  /*----------------------- SECTION F --------------------------*/
+  // Calculate the contribution to the negative log-likelihood
+  // of the process equation for t=1,...,T
+  // Remember that we fixed z_0 = 0
+  for(int i = 1; i < z.size(); ++i){
+    nll -= dnorm(z(i), z(i-1), sdp, true);
+
+    //*----------------------- SECTION G --------------------------*/
+    // Simulation block for process equation
+    SIMULATE {
+      z(i) = rnorm(z(i-1), sdp);
+    }
+  }
+
+  /*----------------------- SECTION H --------------------------*/
+  // Calculate the contribution to the negative log-likelihood
+  // of the observation equation for t=1,...,T
+  // Remember, the first element of z is at t=0,
+  // while the first element of y is at t=1
+  for(int i = 0; i < y.size(); ++i){
+    nll -= keep(i)*dnorm(y(i), z(i+1), sdo, true);
+
+    //*----------------------- SECTION I --------------------------*/
+    // Simulation block for observation equation
+    SIMULATE {
+      y(i) = rnorm(z(i+1), sdo);
+    }
+  }
+
+
+  /*----------------------- SECTION J --------------------------*/
+  // State the transformed parameters to report
+  // Using ADREPORT will return the point values and the standard errors
+  // Note that we only need to specify this for parameters
+  // we transformed, see section D above
+  // The other parameters, including the random effects (states),
+  // will be returned automatically
+  ADREPORT(sdp);
+  ADREPORT(sdo);
+
+  /*----------------------- SECTION K --------------------------*/
+  // Report simulated values
+  SIMULATE{
+    REPORT(z);
+    REPORT(y);
+  }
+
+
+  /*----------------------- SECTION L --------------------------*/
+  // State that we want the negative log-likelihood to be returned
+  // This is what the optimizer in R will minimize
+  return nll;
+
+}
+
+```
