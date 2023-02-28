@@ -981,7 +981,7 @@ For \texttt{TMB} to be able to connect \texttt{map} to the \texttt{par2pTmb}, th
 mapTmb <- list(z=as.factor(c(NA,1:length(dataTmb$y))))
 @
 
-Before we can fit the model, we need to create the \texttt{TMB} object with the function \texttt{MakeADFun}. This object will combine the data, the parameters, and the model and will create a function that calculates the negative
+Before we can fit the model, we need to create the `TMB` object with the function `MakeADFun`. This object will combine the data, the parameters, and the model and will create a function that calculates the negative
 log likelihood and the gradients. Here, because we fix the first state value, we also use the \texttt{map} argument.
 To identify our random effects, namely the states, $z_t$, we set the argument \texttt{random} to equal the name
 of the parameters that are random effects. The argument \texttt{DLL} identify the compile \texttt{C++} function

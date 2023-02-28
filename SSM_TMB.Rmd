@@ -39,8 +39,7 @@ The observation equation (or measurement equation) is:
 \end{equation}
 where $y_t$ is the observation at time $t$, for $t=1, ..., T$ and $\alpha$ is a constant of proportionality that represents any systematic discrepancy between the observations and the states (e.g., the average detection rate). This equation links the observation at time $t$ to the underlying state at that time. The equation implies that we are observing the process with error. This error term is often referred as the observation error and, here, is described by a Normal distribution with standard deviation $\sigma_o$.
 
-This model has four parameters: $\alpha, \beta, \sigma_o, \sigma_p$. It is sometimes
-difficult to accurately estimate all four parameters, something we will demonstrate in the sections below. It is useful to explore a simpler model, where we fix two of the parameters and only have two parameters to estimate. In the simpler model, we fix both $\alpha$ and $\beta$ to 1, resulting in the following.
+This model has four parameters: $\alpha, \beta, \sigma_o, \sigma_p$. It is sometimes difficult to accurately estimate all four parameters, something we will demonstrate in the sections below. It is useful to explore a simpler model, where we fix two of the parameters and only have two parameters to estimate. In the simpler model, we fix both $\alpha$ and $\beta$ to 1, resulting in the following.
 
 The process equation is now:
 \begin{equation}
@@ -279,13 +278,283 @@ Now that a few things are defined, it may be easier to go back to the function a
 
 Now that we have the negative log likelihood C++ file saved, we go back to R.
 
-### Compiling C++ function and fitting the model
+### Compiling and loading C++ function
 
 The first thing we want to do is compile the C++ code and load it so we can use it to calculate the negative log likelihood of our model. Here, our **toy2p.cpp** file is found in the working directory.
 
 ```{r tmbCompile,  results="hide"}
-compile("toy2p.cpp")
+compile("toy2p.cpp", flags="-Wno-unused-variable")
 dyn.load(dynlib("toy2p"))
 ```
 
+### Preparing the model for fitting
 
+First, we need to prepare the data. This is going to be a list with all the items found in the .cpp files that are of the type `DATA` (e.g., `DATA\_VECTOR`). Here, we only have \texttt{y} which is the time series of observed values.
+
+```{r prepY}
+dataTmb <- list(y = y)
+```
+
+Second, we need a list with the parameters. Again the names need to match those in the .cpp file. These are the starting values for the parameters. Note that this includes both the parameters and the states.
+
+```{r parPrep, tidy=FALSE}
+par2pTmb <- list(logSdP = 0, logSdO = 0,
+             z=rep(0,length(dataTmb$y)+1))
+```
+
+By default all values of `par2pTmb` will be estimated, but we assume that we know the value of the state at time 0, $z_0 = 0$. To provide this information, we can create a named list that we will input for the argument `map` of the function `MakeADFun` below. The elements of `map` should have the same name and size as those in `par2pTmb`, but we only need to specify the elements that we want to manipulate, here `par2pTmb\$z`. To fix a value, we set that value to `NA`. The values that are estimated should have a different entry and all values should be factors.
+
+```{r tmbMapPrep}
+mapTmb <- list(z=as.factor(c(NA,1:length(dataTmb$y))))
+```
+
+Before we can fit the model, we need to use the function `MakeADFun` to combine the data, the parameters, and the model and create a function that calculates the negative
+log likelihood and the gradients. 
+
+To identify our random effects, namely the states, $z_t$, we set the argument `random` to equal the name of the parameters that are random effects. The argument `DLL` identify the compiled C++ function to be linked.
+
+```{r MakeADFun, tidy=FALSE}
+m2pTmb <- MakeADFun(data=dataTmb, 
+                    parameters=par2pTmb, 
+                    map=mapTmb, 
+                    random= "z",
+                    DLL= "toy2p")
+```
+
+### Fitting the model to data
+
+We fit the model using \texttt{nlminb}, which is a base R optimizer, but we input the object returned by `MakeADFun`.
+
+```{r tmbOpt}
+f2pTmb <- nlminb(start = m2pTmb$par, # Initial values for the parameters
+                 objective = m2pTmb$fn, # Function to be minimized
+                 gradient = m2pTmb$gr) # Gradient of the objective
+```
+
+It is important to check whether the model converged.
+
+```{r}
+f2pTmb$message
+```
+
+A message stating \texttt{"both X-convergence and relative convergence (5)"} would also indicate convergence.
+
+### Exploring the results
+
+To look at the parameter estimates, you can use the function `sdreport` and object object created by `MakeADFun`.
+
+```{r tmbEst, tidy=FALSE}
+sdr2pTmb <- summary(sdreport(m2pTmb))
+# This will have the parameters and states
+# So we can just print the parameters
+sdr2pTmb[c("sdp", "sdo"),]
+```
+
+We can see that the estimates for both the process variation and the observation error are close to their true value of 0.1, with relatively small standard errors (SEs).
+
+We can get the smoothed state values with the `sdreport` function as above and this will give you the SEs for these states. If you are only interested in the state values (not theis SEs), you can also extract them directly from the model object.
+
+```{r}
+# To get the point estimate and the SE of the states
+zsSe2pTmb <- sdr2pTmb[row.names(sdr2pTmb)=="z",]
+head(zsSe2pTmb)
+# To get only the point estimates of the states
+zs2pTmb <- m2pTmb$env$parList()$z
+head(zs2pTmb)
+```
+
+Note that in this case, because we fixed the value of the state at time $t=0$, the first method, which looks at the predicted values, only returns state values for $t>0$.
+
+We can use the SEs to calculate the 95\% confidence intervals.
+
+```{r tmbCI, tidy=FALSE}
+zsCIl2pTmb <- zsSe2pTmb[,1] + 
+  qnorm(0.025, sd = zsSe2pTmb[,2])
+zsCIu2pTmb <- zsSe2pTmb[,1] + 
+  qnorm(0.975, sd = zsSe2pTmb[,2])
+```
+
+We can now overlay the state estimates along with their confidence intervals on the plot of the simulated data.
+
+```{R tmbRp, tidy=FALSE}
+plot(1:TT, y,
+     pch=3, cex=0.8, col="blue", ty="o", lty = 3,
+     xlab = "t", ylab = expression(z[t]),
+     xlim = c(0,TT), ylim = c(min(y), max(y)+max(y)/5),
+     las = 1)
+points(0:TT, z,
+       pch=19, cex=0.7, col = "red", ty="o")
+polygon(c(1:TT, TT:1), c(zsCIl2pTmb,rev(zsCIu2pTmb)),
+        col=rgb(1,0.7,0.4,0.3), border=FALSE)
+lines(0:TT, zs2pTmb, 
+      col= "darkgoldenrod1", lwd = 2)
+legend("top",
+       legend = c("Obs.", "True states", "Smooth. states"),
+       pch = c(3, 19, NA),
+       col = c("blue", "red", "darkgoldenrod1"),
+       lwd = c(1, 1, 2), lty = c(3, 1, 1),
+       horiz=TRUE, bty="n", cex=0.9)
+```
+
+### Model selection
+
+We sometimes have more than one model to explore. For example, we could fit the more general and slightly more complex version of the model, where we are estimating in addition to the standard
+deviations, two additional parameter: $\alpha$ and $\beta$. 
+
+The process equation of this new model is:
+\begin{equation}
+  z_t = \beta z_{t-1} + \epsilon_t, \;\;\; \epsilon_t \sim \text{N}(0, \sigma_p^2),
+  \label{E.toy4p.p}
+\end{equation}
+where $\beta$ represents the autocorrelation in the state values. 
+
+The observation equation of this new model is:
+\begin{equation}
+  y_t = \alpha z_{t} + \eta_t, \;\;\; \eta_t \sim \text{N}(0, \sigma_o^2),
+  \label{E.toy4p.o}
+\end{equation}
+where $\alpha$ is a constant of proportionality that represents any systematic discrepancy between the observations and the states (e.g., the average detection rate).
+
+In our simulation, both $\alpha$ and $\beta$ are implicitly set to 1. Here we estimate these values.
+
+To fit this model in ```TMB```, we will create a new file called **toy4p.cpp**. Note that this is exactly the same as **toy2p.cpp** except that we added the two new parameters in sections C, and F to I.
+
+```{Rcpp toy4p.cpp, write_chunk=TRUE, eval=FALSE}
+/*----------------------- SECTION A --------------------------*/
+// State that we need the TMB package
+#include <TMB.hpp>
+
+/*----------------------- SECTION B --------------------------*/
+// Define main function
+template<class Type>
+Type objective_function<Type>::operator() ()
+{
+
+  /*----------------------- SECTION C --------------------------*/
+  // Specify the input data
+  DATA_VECTOR(y);
+
+  // For one-step-ahead residuals
+  DATA_VECTOR_INDICATOR(keep, y);
+
+  // Specify the parameters
+  PARAMETER(logSdP); // Log of st. dev. for the process variation
+  PARAMETER(logSdO); // Log of st. dev. for the observation error
+  PARAMETER(alpha);
+  PARAMETER(beta);
+
+  // Specify the random effect/states
+  PARAMETER_VECTOR(z);
+
+  /*----------------------- SECTION D --------------------------*/
+  // Transform standard deviations
+  // exp(par) is a trick to make sure that the estimated sd > 0
+  Type sdp = exp(logSdP);
+  Type sdo = exp(logSdO);
+
+  /*----------------------- SECTION E --------------------------*/
+  // Define the variable that will keep track of
+  // the negative log-likelihood (nll)
+  Type nll = 0.0;
+
+  /*----------------------- SECTION F --------------------------*/
+  // Calculate the contribution to the negative log-likelihood
+  // of the process equation for t=1,...,T
+  // Remember that we fixed z_0 = 0
+  for(int i = 1; i < z.size(); ++i){
+    nll -= dnorm(z(i), beta*z(i-1), sdp, true);
+
+    //*----------------------- SECTION G --------------------------*/
+    // Simulation block for process equation
+    SIMULATE {
+      z(i) = rnorm(beta*z(i-1), sdp);
+    }
+  }
+
+  /*----------------------- SECTION H --------------------------*/
+  // Calculate the contribution to the negative log-likelihood
+  // of the observation equation for t=1,...,T
+  // Remember, the first element of z is at t=0,
+  // while the first element of y is at t=1
+  for(int i = 0; i < y.size(); ++i){
+    nll -= keep(i)*dnorm(y(i), alpha*z(i+1), sdo, true);
+
+    //*----------------------- SECTION I --------------------------*/
+    // Simulation block for observation equation
+    SIMULATE {
+      y(i) = rnorm(alpha*z(i+1), sdo);
+    }
+  }
+
+  /*----------------------- SECTION J --------------------------*/
+  // State the transformed parameters to report
+  // Using ADREPORT will return the point values and the standard errors
+  // Note that we only need to specify this for parameters
+  // we transformed, see section D above
+  // The other parameters, including the random effects (states),
+  // will be returned automatically
+  ADREPORT(sdp);
+  ADREPORT(sdo);
+
+  /*----------------------- SECTION K --------------------------*/
+  // Report simulated values
+  SIMULATE{
+    REPORT(z);
+    REPORT(y);
+  }
+
+
+  /*----------------------- SECTION L --------------------------*/
+  // State that we want the negative log-likelihood to be returned
+  // This is what the optimizer in R will minimize
+  return nll;
+
+}
+
+```
+
+As before, we compile and load the function.
+
+```{r tmbfCompile, results="hide"}
+compile("toy4p.cpp", flags="-Wno-unused-variable")
+dyn.load(dynlib("toy4p"))
+```
+
+We can use the same data and map objects as above, but we need to change the object containing the initial parameter values, because we have two new parameters to estimate. 
+
+We then get the MLE. Note that while we can often use uninformative starting values (e.g., 0), we can run into estimation problems if we set all the starting values as 0s. To avoid these problems, we use the true simulated values for the starting values. With real data, we could have started with sensible values rather than 0.
+
+```{r tmbfMLE, tidy=FALSE}
+par4pTmb <- list(logSdP = log(0.1), logSdO = log(0.1), 
+                 alpha = 1, beta = 1, # New parameters
+                 z=rep(0,length(dataTmb$y)+1))
+m4pTmb <- MakeADFun(dataTmb, par4pTmb, map=mapTmb, random= "z",
+                  DLL= "toy4p", silent=TRUE)
+f4pTmb <- nlminb(m4pTmb$par, m4pTmb$fn, m4pTmb$gr)
+f4pTmb$message
+```
+
+We can see here that the optimizer has converged.
+
+We can use again `sdreport` to get the parameter estimates and their SEs.
+
+```{r tmbfest, tidy=FALSE}
+sdr4pTmb <- summary(sdreport(m4pTmb))
+cbind(Simulated = c(sdp, sdo, 1, 1),
+      sdr4pTmb[c("sdp", "sdo", "beta", "alpha"),])
+```
+
+We can see here that compared to the estimates from the original model, the more complex and flexible model has much
+higher standard errors. As mentioned above, the optimization process is also quite sensitive to the starting values.
+
+We can use AIC to compare these two models. Since the \texttt{C++} function calculates the negative log likelihood and is the objective of the optimization procedures, we can just use the returned value by `nlminb`.
+
+```{r tmbAIC, tidy=FALSE}
+aic2pTmb <- 2 * 2 + 2 * f2pTmb$objective
+aic4pTmb <- 2 * 4 + 2 * f4pTmb$objective
+c(Original = aic2pTmb, 
+  Flexible = aic4pTmb,
+  Difference = aic4pTmb - aic2pTmb)
+```
+
+We can see that the original model has a lower AIC than the more flexible model. Thus the original model is considered better. If the two models were equivalent, we would expect a AIC difference of 4 ($2k$), but here the difference is much smaller: \Sexpr{round(aic4pTmb - aic2pTmb,2)}. This may be because the more flexible model is overfitting the data.
