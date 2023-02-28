@@ -1,0 +1,14 @@
+---
+title: "Fitting state-space models using the R package TMB"
+author: "Marie Auger-Methe"
+date: "28/02/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Info
+
+This tutorial is heavily based on Appendix S1 (Supporting Information) from Auger-Méthé, M., Newman, K., Cole, D., Empacher, F., Gryba, R., King, A. A., Leos-Barajas, V., Mills Flemming, J., Nielsen, A., Petris, G., and Thomas, L.. 2021. A guide to state–space modeling of ecological time series. Ecological Monographs 91(4):e01470. 10.1002/ecm.1470 (Open access,  https://doi.org/10.1002/ecm.1470). Please refer to the paper and tutorial for more in-depth information on state-space models and how to apply them to data using R.
