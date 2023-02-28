@@ -801,7 +801,6 @@ We can see that for this more complex model we have estimation problems. The lik
 
 As mentioned in Appendix S3 of Auger-Méthé et al. 2021, this identifiability problem appears to be mostly occurring when $z_0=0$.
 
-
 \section{Polar bear movement data}
 
 Dr. Andrew Derocher (University of Alberta, Canada) shared one movement track of a polar bear with a collar that provided both Argos data and GPS data. This provides us a unique opportunity to fit the model to error-prone Argos data and check the state estimates with the GPS data, see \citet{AugerMethe-etal-2017}. This dataset \citep{AugerMethe-Derocher-2021} is available through Dryad (doi:10.5061/dryad.4qrfj6q96).
@@ -1316,3 +1315,4 @@ curve(dnorm, -5, 5, add=TRUE,
 @
 
 Overall the residuals look pretty good. There is no obvious patterns in the residuals through time. There is no autocorrelation. The distribution of the residuals is close to a standard normal. The only sign of a slight problem is that the shape of the residuals is not exactly normal, with some thicker base. This could be due to a mismatch in the values assigned to the different quality categories, and is something worth looking into.
+
