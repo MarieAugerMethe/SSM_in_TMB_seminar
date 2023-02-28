@@ -170,7 +170,7 @@ pre code {
 
 <div id="document-info" class="section level1">
 <h1>Document info</h1>
-<p>This tutorial is heavily based on Appendix S1 (Supporting Information) from Auger-Méthé, M., Newman, K., Cole, D., Empacher, F., Gryba, R., King, A. A., Leos-Barajas, V., Mills Flemming, J., Nielsen, A., Petris, G., and Thomas, L.. 2021. A guide to state–space modeling of ecological time series. Ecological Monographs 91(4):e01470. 10.1002/ecm.1470 (Open access, <a href="https://doi.org/10.1002/ecm.1470" class="uri">https://doi.org/10.1002/ecm.1470</a>). Please refer to the paper and tutorial for more in-depth information on state-space models and how to apply them to data using R.</p>
+<p>This tutorial is heavily based on Appendix S1 (Supporting Information) from Auger-Méthé, M., Newman, K., Cole, D., Empacher, F., Gryba, R., King, A. A., Leos-Barajas, V., Mills Flemming, J., Nielsen, A., Petris, G., and Thomas, L.. 2021. A guide to state–space modeling of ecological time series. Ecological Monographs 91(4):e01470. 10.1002/ecm.1470 (Open access, <a href="https://doi.org/10.1002/ecm.1470" class="uri">https://doi.org/10.1002/ecm.1470</a>). Please refer to the paper and its appendices for more in-depth information on state-space models and how to apply them to data using R.</p>
 </div>
 <div id="important-installation-info-to-do-before-seminar" class="section level1">
 <h1>Important installation info (to do before seminar!)</h1>
@@ -254,12 +254,10 @@ legend(&quot;top&quot;,
 <p>In TMB you need to create a C++ file that computes the value of the negative log likelihood for your data and for a given set of parameter values. Then, you compile the C++ code using <code>TMB</code> and use that function in one of R’s optimizers to find the minimum negative log likelihood. The beauty of <code>TMB</code> is that it uses the Laplace approximation to integrate over the states and computes the gradient efficiently, which speeds up the optimizing process.</p>
 <p>Assuming you have properly installed , let’s load it.</p>
 <pre class="r"><code>library(TMB)</code></pre>
-<pre><code>## Warning in checkMatrixPackageVersion(): Package version inconsistency detected.
-## TMB was built with Matrix version 1.5.3
-## Current Matrix version is 1.5.1
-## Please re-install &#39;TMB&#39; from source using install.packages(&#39;TMB&#39;, type = &#39;source&#39;) or ask CRAN for a binary version of &#39;TMB&#39; matching CRAN&#39;s &#39;Matrix&#39; package</code></pre>
-<p>Now, let us create the negative log-likelihood function that we will minimize (equivalent of maximizing the likelihood). We write this function in a special TMB C++ language. The code for the function needs to be save in a text file. We usually give it the extension .cpp. You can do this directly in R Studio. You write the code just as you would write a separate R script, but you save it as a .cpp file by giving it the .cpp extension.</p>
-<p>We name the file <strong>toy2p.cpp</strong> and it will contain the following code. Note that in C++, comments are preceded by  or contained within . Also, as explained below, here the code is a little bit more complex than strictly necessary. We have included code that allow us to compute the one-step-ahead residuals and simulate from the model. While these features are not always necessary, they are key to model checking and thus we believe they should be part of all model fitting workflow.</p>
+<div id="writing-the-negative-log-likelihood-function-in-c" class="section level3">
+<h3>Writing the negative log-likelihood function in C++</h3>
+<p>Now, let us create the negative log-likelihood function that we will minimize (equivalent of maximizing the likelihood). We write this function in a special TMB C++ language. The code for the function needs to be save in a text file. We usually give it the extension .cpp. You can do this directly in R Studio. You write the code just as you would write a separate R script, but you save it as a C++ file by giving it the .cpp extension.</p>
+<p>We name the file <strong>toy2p.cpp</strong> and it will contain the following code. Note that in C++, comments are preceded by // or contained within /* */. Also, as explained below, here the code is a little bit more complex than strictly necessary. We have included code that allow us to compute the one-step-ahead residuals and simulate from the model. While these features are not always necessary, they are key to model checking and thus we believe they should be part of all model fitting workflow.</p>
 <pre class="cpp"><code>/*----------------------- SECTION A --------------------------*/
 // Link to the TMB package
 #include &lt;TMB.hpp&gt;
@@ -350,6 +348,41 @@ Type objective_function&lt;Type&gt;::operator() ()
 
 }
 </code></pre>
+<p>A few notes about C++:</p>
+<ul>
+<li><p>C++ uses round brackets <code>()</code> for both objects and functions</p></li>
+<li><p>the index of an object in C++ starts at 0, not 1. For example, to get the first element of a vector called <code>x</code>, you write <code>x(0)</code>. This is why the for-loops in sections F and H end before the length of the index, which is specified by <code>.size()</code>. If R crashes when you compile the code (see below for compiling instruction), the most likely culprit is an index problem, so check your for-loops.</p></li>
+<li><p>lines end with <code>;</code></p></li>
+<li><p>Many of the density functions available in R are available in C++, at least when using the <code>TMB package</code>. These usually have the same names and arguments as those in R. For example, in sections F and H we use <code>dnorm</code> just like we would in R.</p></li>
+</ul>
+<p>A few tips about writing your function:</p>
+<ul>
+<li><p>If we want to use an unconstrained optimizer in R, we have to specify in the negative log-likelihood function that we transform the values provided by the optimizer into values that are in the appropriate domain. For example, here in section D, we exponentiate the input log-transformed standard deviations (logSdP and logSdO) to ensure that the standard deviations have positive values. We do this so that we can use an unconstrained optimizer, yet only have positive estimated values for the standard deviations.</p></li>
+<li><p>By default, <code>TMB</code> will only return the estimated values in the same form as given in the function (e.g., <code>logSdP</code> rather than <code>sdp</code>). To be able to retrieve the estimate values of interest, we need to specify that we want them returned. This is done in section J.</p></li>
+<li><p>Note that we have included simulation blocks (sections G, I, and K), even though these blocks are not necessary to fit the model to data. These blocks are extremely useful for model validation, see the model validation section below for details.</p></li>
+<li><p>Similarly, while it is not necessary to fit the model, we have added an indicator variable (<code>keep</code>) in both sections C and H. This indicator variable is necessary to calculate the one-step-ahead residuals that we will discuss in the model validation section.</p></li>
+</ul>
+<p>Now that a few things are defined, it may be easier to go back to the function and see what it means.</p>
+<ul>
+<li><p>Section A loads the packages needed.</p></li>
+<li><p>Section B indicates that we are defining the main function that will calculate the negative log likelihood.</p></li>
+<li><p>Section C defines the data and parameters. The values of both data and parameters will be put in through R.</p></li>
+<li><p>Section D transforms the parameters so that they are constrained appropriately (here, that the standard deviation are <span class="math inline">\(&gt;0\)</span>).</p></li>
+<li><p>Section E creates the object that will keep track of the negative log likelihood.</p></li>
+<li><p>Section F has a for-loop that calculates the contribution to the negative log likelihood of the process equation.</p></li>
+<li><p>Section G allows to simulate the process equation.</p></li>
+<li><p>Section H calculates the contribution to the negative log likelihood of the observation equation. Note that using  tells  that this is where we would remove the data for the one-step ahead residuals.</p></li>
+<li><p>Section I allows to simulate the observation equation.</p></li>
+<li><p>Section J indicates that we want the parameters in their untransformed form to be returned with their standard errors.</p></li>
+<li><p>Section K indicates what to report when we simulate the model.</p></li>
+<li><p>Section L indicates that the main item the function returns is the negative log likelihood.</p></li>
+</ul>
+<p>Now that we have the negative log likelihood C++ file saved, we go back to R.</p>
+</div>
+<div id="compiling-c-function-and-fitting-the-model" class="section level3">
+<h3>Compiling C++ function and fitting the model</h3>
+<p>The first thing we want to do is compile the C++ code and load it so we can use it to calculate the negative log likelihood of our model. Here, our <strong>toy2p.cpp</strong> file is found in the working directory.</p>
+</div>
 </div>
 </div>
 
