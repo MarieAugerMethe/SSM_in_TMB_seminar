@@ -679,3 +679,70 @@ title("Sd Obs.", line=-1.5, adj=0.9)
 
 We can see here that the observed test statistics are close to the main peaks from the histograms, which suggests that the observations are in line with the prediction of the model. But again, one needs to be careful, as these tests tend to be conservative.
 
+### Effects of starting values and diagnostics for a mispecified model
+
+Now let us explore whether the method described above could detect the lack of fit of model with poor parameter estimates. We will use this opportunity to also look at the effect of the starting values on the parameter and state estimates. For this example, we will use again the full more flexible model. However, in this case instead of using the true parameter values as starting values for the optimizer, we will use the default starting values of 0.
+
+```{r tmbpvalbad, tidy = FALSE}
+# Set the starting values
+# Here we use 0s everywhere instead of the true values
+parMisTmb <- list(logSdP = 0, logSdO = 0, alpha = 0, beta = 0,
+              z=rep(0,length(dataSimTmb$y)+1))
+# Make the TMB model function
+# We use the original data and map (dataTmb, mapTmb)
+mMisTmb <- MakeADFun(dataTmb, parMisTmb, map=mapTmb, random= "z",
+                   DLL= "toy4p", silent=TRUE)
+# Find the MLE - more like a local max
+fMisTmb <- nlminb(mMisTmb$par, mMisTmb$fn, mMisTmb$gr)
+# Converged
+fMisTmb$message
+```
+
+It looks like the optimizer converged to a solution, but as we can see below, the parameter estimates based on the previous set of initial values and those used above are quite different. The fact that the parameter values for
+$\alpha$ and $\beta$ are exactly the same as the input starting value should raise warning flags.
+
+```{r tmbP0comp, tidy=FALSE}
+c(New = fMisTmb$objective, Old = f4pTmb$objective)
+rbind(New = fMisTmb$par, Old = f4pTmb$par)
+```
+
+To see how this estimation problem could affect the model fit, let us use again our frequentist version of the posterior predictive measures. 
+
+```{r tmbpvalbad2, tidy = FALSE}
+set.seed(999) # Set the random seed to be able to reproduce the simulation
+# Create matrix to keep track of replicate test statistic values
+repsB <- matrix(NA, nrow=nrep, ncol=2)
+colnames(repsB) <- c("Mean", "SD")
+# Parameter to use to simulate
+parMisp <- mMisTmb$env$par
+# Set to estimated values
+parMisp[1:4] <- fMisTmb$par
+for(i in 1:nrep){ # For each replicate
+  yrep <- mMisTmb$simulate(par=parMisp)$y # simulate observations
+  repsB[i, "Mean"] <- mean(yrep)
+  repsB[i, "SD"] <- sd(yrep)
+}
+```
+
+Now let us compare the simulated and observed test statistics visually.
+
+```{r tmbHistpar0, tidy=FALSE}
+layout(matrix(1:2,nrow=1))
+# Simulated test statistics vs observed test statistics
+hist(repsB[,"Mean"], breaks=30,
+     main = "", las=1, col="darkgrey",
+     xlab = expression(T(y^{i})),
+     xlim = range(c(repsB[,"Mean"], c(0.9,1.1)*mean(y))))
+box()
+abline(v=mean(y), col="hotpink", lwd=4)
+title("Mean Obs.", line=-1.5, adj=0.9)
+hist(repsB[,"SD"], breaks=30,
+     main = "", las=1, col="darkgrey",
+     xlab = expression(T(y^{i})),
+     xlim = range(c(repsB[,"SD"],  c(0.9,1.1)*sd(y))))
+box()
+abline(v=sd(y), col="hotpink", lwd=4)
+title("Sd Obs.", line=-1.5, adj=0.9)
+```
+
+Clearly, the observed measures are quite different from those generated from the model with these parameter estimates. Thus, while we want to be careful when we fail to find a difference between the observed and simulated test statistics, finding such discrepancies is a clear sign of problem.
