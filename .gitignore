@@ -5,7 +5,9 @@
 *.Rproj
 
 *.so
-/Data/*
-
 *.o
 *.DS_Store
+
+/Data/*
+*_cache/*
+*_files/*
