@@ -499,14 +499,14 @@ that function in one of R’s optimizers to find the minimum negative log
 likelihood. The beauty of <code>TMB</code> is that it uses the Laplace
 approximation to integrate over the states and computes the gradient
 efficiently, which speeds up the optimizing process.</p>
-<p>Assuming you have properly installed , let’s load it.</p>
+<p>Assuming you have properly installed (see above), let’s load it.</p>
 <pre class="r"><code>library(TMB)</code></pre>
 <div id="writing-the-negative-log-likelihood-function-in-c" class="section level3">
 <h3>Writing the negative log-likelihood function in C++</h3>
 <p>Now, let us create the negative log-likelihood function that we will
 minimize (equivalent of maximizing the likelihood). We write this
 function in a special TMB C++ language. The code for the function needs
-to be save in a text file. We usually give it the extension .cpp. You
+to be saved in a text file. We usually give it the extension .cpp. You
 can do this directly in R Studio. You write the code just as you would
 write a separate R script, but you save it as a C++ file by giving it
 the .cpp extension.</p>
@@ -701,7 +701,7 @@ match those in the .cpp file. These are the starting values for the
 parameters. Note that this includes both the parameters and the
 states.</p>
 <pre class="r"><code>par2pTmb &lt;- list(logSdP = 0, logSdO = 0,
-             z=rep(0,length(dataTmb$y)+1))</code></pre>
+             z=rep(0, length(dataTmb$y)+1))</code></pre>
 <p>By default all values of <code>par2pTmb</code> will be estimated, but
 we assume that we know the value of the state at time 0, <span class="math inline">\(z_0 = 0\)</span>. To provide this information, we
 can create a named list that we will input for the argument
@@ -720,11 +720,11 @@ and the gradients.</p>
 <code>random</code> to equal the name of the parameters that are random
 effects. The argument <code>DLL</code> identify the compiled C++
 function to be linked.</p>
-<pre class="r"><code>m2pTmb &lt;- MakeADFun(data=dataTmb, 
-                    parameters=par2pTmb, 
-                    map=mapTmb, 
-                    random= &quot;z&quot;,
-                    DLL= &quot;toy2p&quot;)</code></pre>
+<pre class="r"><code>m2pTmb &lt;- MakeADFun(data = dataTmb, 
+                    parameters = par2pTmb, 
+                    map = mapTmb, 
+                    random = &quot;z&quot;,
+                    DLL = &quot;toy2p&quot;)</code></pre>
 </div>
 <div id="fitting-the-model-to-data" class="section level3">
 <h3>Fitting the model to data</h3>
@@ -811,27 +811,31 @@ the object returned by <code>MakeADFun</code>.</p>
 <code>sdreport</code> and object object created by
 <code>MakeADFun</code>.</p>
 <pre class="r"><code>sdr2pTmb &lt;- summary(sdreport(m2pTmb))</code></pre>
-<pre><code>## iter: 1  mgc: 1.865175e-14 
-## outer mgc:  6.507887e-08 
-## iter: 1  value: -439.1902 mgc: 0.04165698 ustep: 1 
-## iter: 2  mgc: 1.831868e-14 
-## outer mgc:  0.1427246 
-## iter: 1  value: -439.3738 mgc: 0.04174038 ustep: 1 
-## iter: 2  mgc: 2.04281e-14 
-## outer mgc:  0.1427344 
-## iter: 1  value: -439.1738 mgc: 0.04165698 ustep: 1 
-## iter: 2  mgc: 1.798561e-14 
-## outer mgc:  0.1099994 
-## iter: 1  value: -439.3902 mgc: 0.04174038 ustep: 1 
-## iter: 2  mgc: 1.865175e-14 
-## outer mgc:  0.1098888 
-## outer mgc:  0.1174192</code></pre>
+<pre><code>## Optimizing tape... Done
+## iter: 1  value: 368.6555 mgc: 1.061776 ustep: 1 
+## iter: 2  mgc: 4.440892e-16 
+## Matching hessian patterns... Done
+## outer mgc:  109.3254 
+## iter: 1  value: 368.8545 mgc: 1.061776 ustep: 1 
+## iter: 2  mgc: 4.440892e-16 
+## outer mgc:  109.2553 
+## iter: 1  value: 368.4566 mgc: 1.061776 ustep: 1 
+## iter: 2  mgc: 6.106227e-16 
+## outer mgc:  109.3955 
+## iter: 1  value: 368.8544 mgc: 1.059655 ustep: 1 
+## iter: 2  mgc: 4.163336e-16 
+## outer mgc:  109.3977 
+## iter: 1  value: 368.4566 mgc: 1.063902 ustep: 1 
+## iter: 2  mgc: 6.245005e-16 
+## outer mgc:  109.2531 
+## outer mgc:  1</code></pre>
 <pre class="r"><code># This will have the parameters and states
 # So we can just print the parameters
-sdr2pTmb[c(&quot;sdp&quot;, &quot;sdo&quot;),]</code></pre>
-<pre><code>##      Estimate Std. Error
-## sdp 0.1174192 0.01215134
-## sdo 0.0914208 0.01077956</code></pre>
+cbind(&quot;Simulated&quot; = c(sdp, sdo),
+  sdr2pTmb[c(&quot;sdp&quot;, &quot;sdo&quot;),])</code></pre>
+<pre><code>##     Simulated Estimate Std. Error
+## sdp       0.1        1  0.4849285
+## sdo       0.1        1  0.4845510</code></pre>
 <p>We can see that the estimates for both the process variation and the
 observation error are close to their true value of 0.1, with relatively
 small standard errors (SEs).</p>
@@ -1049,8 +1053,8 @@ c(Original = aic2pTmb,
 <p>We can see that the original model has a lower AIC than the more
 flexible model. Thus the original model is considered better. If the two
 models were equivalent, we would expect a AIC difference of 4 (<span class="math inline">\(2k\)</span>), but here the difference is much
-smaller: . This may be because the more flexible model is overfitting
-the data.</p>
+smaller. This may be because the more flexible model is overfitting the
+data.</p>
 </div>
 <div id="checking-estimability-and-model-fit-with-simulations" class="section level3">
 <h3>Checking estimability and model fit with simulations</h3>
@@ -1062,7 +1066,8 @@ below, can help assess the model fit.</p>
 <p><code>TMB</code> has various simulators that have the same naming
 convention as those in R (e.g., <code>rnorm()</code>,
 <code>rpois()</code>).</p>
-<p>In the file we created above, we have three simulation blocks:</p>
+<p>In the <strong>toy2p.cpp</strong> file we created above, we have
+three simulation blocks:</p>
 <ul>
 <li><p>Section G simulates the process equation,</p></li>
 <li><p>Section I simulates the observation equations, and</p></li>
@@ -1097,37 +1102,7 @@ original simulation, you will get the same results.</p>
 <p>Simulations can be used to assess whether we can estimate the
 parameter and states. Here, once you have define you code appropriately,
 you can simulate and check that your model can estimate the parameter
-and states in only a few lines of code (note some code is repeated from
-above).</p>
-<pre class="r"><code># Simulate the data (same code as above)
-set.seed(553)
-dataSimTmb &lt;- list(y = numeric(TT))
-parSimTmb &lt;- list(logSdP = log(0.1), logSdO = log(0.1),
-             z=rep(0,length(dataSimTmb$y)+1))
-mSimTmb &lt;- MakeADFun(dataSimTmb,
-                     parSimTmb, map=mapTmb, random= &quot;z&quot;,
-                  DLL= &quot;toy2p&quot;, silent=TRUE)
-simTmb &lt;- mSimTmb$simulate()
-# Fit the model to check estimation
-mCheckTmb &lt;- MakeADFun(list(y = simTmb$y), # Note difference in this argument
-                       parSimTmb, map=mapTmb, random= &quot;z&quot;,
-                  DLL= &quot;toy2p&quot;, silent=TRUE)
-fCheckTmb &lt;- nlminb(mCheckTmb$par, mCheckTmb$fn, mCheckTmb$gr)
-fCheckTmb$message</code></pre>
-<pre><code>## [1] &quot;relative convergence (4)&quot;</code></pre>
-<pre class="r"><code># Compare simulated and estimated parameters
-cbind(&quot;True&quot; = parSimTmb[1:2], &quot;Est&quot; = fCheckTmb$par)</code></pre>
-<pre><code>##        True      Est      
-## logSdP -2.302585 -2.142005
-## logSdO -2.302585 -2.392283</code></pre>
-<pre class="r"><code># Compare simulated and estimated states - difference
-summary(abs(simTmb$z - mCheckTmb$env$parList()$z))</code></pre>
-<pre><code>##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-## 0.00000 0.01925 0.04398 0.05080 0.07435 0.17557</code></pre>
-<p>As we can see, the parameter (here untransformed) and the state
-estimates are close to the simulated value. This is a quick check here,
-but one could look at easily take a deeper look using Root Mean Square
-prediction errors (see Auger-Méthé et al. 2021).</p>
+and states in only a few lines of code.</p>
 <p>Another simple, albeit often conservative, way to look at the model
 fit using simulations is to use the frequentist equivalent of posterior
 predictive measures. The idea is to define a test statistic (e.g., the

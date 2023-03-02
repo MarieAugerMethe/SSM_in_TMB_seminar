@@ -308,18 +308,18 @@ log likelihood and the gradients.
 To identify our random effects, namely the states, $z_t$, we set the argument `random` to equal the name of the parameters that are random effects. The argument `DLL` identify the compiled C++ function to be linked.
 
 ```{r MakeADFun, tidy=FALSE}
-m2pTmb <- MakeADFun(data=dataTmb, 
-                    parameters=par2pTmb, 
-                    map=mapTmb, 
-                    random= "z",
-                    DLL= "toy2p")
+m2pTmb <- MakeADFun(data = dataTmb, 
+                    parameters = par2pTmb, 
+                    map = mapTmb, 
+                    random = "z",
+                    DLL = "toy2p")
 ```
 
 ### Fitting the model to data
 
 We fit the model using \texttt{nlminb}, which is a base R optimizer, but we input the object returned by `MakeADFun`.
 
-```{r tmbOpt}
+```{r tmbOpt, tidy=FALSE, cache=TRUE}
 f2pTmb <- nlminb(start = m2pTmb$par, # Initial values for the parameters
                  objective = m2pTmb$fn, # Function to be minimized
                  gradient = m2pTmb$gr) # Gradient of the objective
@@ -341,14 +341,15 @@ To look at the parameter estimates, you can use the function `sdreport` and obje
 sdr2pTmb <- summary(sdreport(m2pTmb))
 # This will have the parameters and states
 # So we can just print the parameters
-sdr2pTmb[c("sdp", "sdo"),]
+cbind("Simulated" = c(sdp, sdo),
+  sdr2pTmb[c("sdp", "sdo"),])
 ```
 
 We can see that the estimates for both the process variation and the observation error are close to their true value of 0.1, with relatively small standard errors (SEs).
 
 We can get the smoothed state values with the `sdreport` function as above and this will give you the SEs for these states. If you are only interested in the state values (not theis SEs), you can also extract them directly from the model object.
 
-```{r}
+```{r toy.states.est, tidy=FALSE, cache=TRUE}
 # To get the point estimate and the SE of the states
 zsSe2pTmb <- sdr2pTmb[row.names(sdr2pTmb)=="z",]
 head(zsSe2pTmb)
@@ -551,7 +552,7 @@ c(Original = aic2pTmb,
   Difference = aic4pTmb - aic2pTmb)
 ```
 
-We can see that the original model has a lower AIC than the more flexible model. Thus the original model is considered better. If the two models were equivalent, we would expect a AIC difference of 4 ($2k$), but here the difference is much smaller: \Sexpr{round(aic4pTmb - aic2pTmb,2)}. This may be because the more flexible model is overfitting the data.
+We can see that the original model has a lower AIC than the more flexible model. Thus the original model is considered better. If the two models were equivalent, we would expect a AIC difference of 4 ($2k$), but here the difference is much smaller. This may be because the more flexible model is overfitting the data.
 
 ### Checking estimability and model fit with simulations
 
@@ -561,7 +562,7 @@ up the process and, as we will see below, can help assess the model fit.
 
 `TMB` has various simulators that have the same naming convention as those in R  (e.g., `rnorm()`, `rpois()`).
 
-In the \emph{toy2p.cpp} file we created above, we have three simulation blocks:
+In the **toy2p.cpp** file we created above, we have three simulation blocks:
 
 - Section G simulates the process equation,
 
@@ -593,7 +594,7 @@ mSimTmb <- MakeADFun(dataSimTmb, parSimTmb, map=mapTmb, random= "z",
 
 Finally, we will simulate the data using the using the created object and its `\$simulate()`.
 
-```{r tmbSimLGSSM}
+```{r tmbSimLGSSM, cache=TRUE}
 set.seed(553) # Same random seed as above
 simTmb <- mSimTmb$simulate()
 ```
@@ -603,31 +604,7 @@ section K of the C++ code specifically states to return both. Because we used th
 
 How can these simulation blocks be useful for model verification?
 
-Simulations can be used to assess whether we can estimate the parameter and states. Here, once you have define you \texttt{C++} code appropriately, you can simulate and check that your model can estimate the parameter and states in only a few lines of code (note some code is repeated from above).
-
-```{R tmbSimCheck, tidy=FALSE}
-# Simulate the data (same code as above)
-set.seed(553)
-dataSimTmb <- list(y = numeric(TT))
-parSimTmb <- list(logSdP = log(0.1), logSdO = log(0.1),
-             z=rep(0,length(dataSimTmb$y)+1))
-mSimTmb <- MakeADFun(dataSimTmb,
-                     parSimTmb, map=mapTmb, random= "z",
-                  DLL= "toy2p", silent=TRUE)
-simTmb <- mSimTmb$simulate()
-# Fit the model to check estimation
-mCheckTmb <- MakeADFun(list(y = simTmb$y), # Note difference in this argument
-                       parSimTmb, map=mapTmb, random= "z",
-                  DLL= "toy2p", silent=TRUE)
-fCheckTmb <- nlminb(mCheckTmb$par, mCheckTmb$fn, mCheckTmb$gr)
-fCheckTmb$message
-# Compare simulated and estimated parameters
-cbind("True" = parSimTmb[1:2], "Est" = fCheckTmb$par)
-# Compare simulated and estimated states - difference
-summary(abs(simTmb$z - mCheckTmb$env$parList()$z))
-```
-
-As we can see, the parameter (here untransformed) and the state estimates are close to the simulated value. This is a quick check here, but one could look at easily take a deeper look using Root Mean Square prediction errors (see Auger-Méthé et al. 2021).
+First, simulations can be used to assess whether we can estimate the parameter and states as we did above with our simulated data in R (e.g. comparing values used to simulate the data to the estimated values), but with only a few lines of code.
 
 Another simple, albeit often conservative, way to look at the model fit using simulations is to use the frequentist equivalent of posterior predictive measures. The idea is to define a test statistic (e.g., the mean of $\mathbf{y}$) and calculate how probable more extreme values of this test statistic would be if we were to sample from our model compared to the observed test statistic value. Here, we will look at two test statistics: the mean $y_t$ and the standard deviation of $y_t$. Specifically, we will simulate a time series of observations 200 times and, for each replicate, calculate the mean and standard deviation of that replicate. We will then be able to compare the simulated test statistics to the observed test statistics.
 
