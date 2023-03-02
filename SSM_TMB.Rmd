@@ -627,22 +627,7 @@ for(i in 1:nrep){ # For each replicate
 }
 ```
 
-Then, we calculate the fraction of test statistic values calculated from the simulated data sets that are greater or equal to the test statistic value calculated from the observed data:
-\begin{equation}
-p_C = Pr(T(\mathbf{y}^{i}) \geq T(\mathbf{y})|\hat{\boldsymbol{\theta}}_\textsc{mle}),
-\end{equation}
-where $\hat{\boldsymbol{\theta}}_\textsc{mle}$ is the MLE value of $\boldsymbol{\theta}$, $T(\mathbf{y}^{i})$ is the test statistic value of a replicate and $T(\mathbf{y})$ is the test statistic value for the observed data. 
-
-Extreme values close to 0 or 1 could be indicative of discrepancies between the model and the data. As here we are looking at the true model with the parameters estimated values that were very close to the true values
-used to simulate the data, we would expect that the observed test statistics values are similar to that from the replicates.
-
-```{R tmbpval}
-# Calculate estimated pc
-sum(repsT[,"Mean"] >= mean(y))/nrep
-sum(repsT[,"SD"] >= sd(y))/nrep
-```
-
-Here, the values are by no means extreme and are quite central. As such, there is no evidence to suggest that the model is inadequate for the data. It is important to note that we are *not* accounting here for the fact that we are using the data twice: once to estimate the parameter values and once to assess the fit. Thus, such tests tend to be conservative and often fail to detect lack of fit. Thus, one may not want to rely too heavily on values such as these. But in some cases, they are useful to find large discrepancies between the model and the data. In general, to look at histograms of the simulated test statistic values, and see where the observed test statistic fall.
+To see if the observed test statistics are in line with those produced from the simulations from the model, we can plot histograms of the simulated test statistic values, and see where the observed test statistic fall.
 
 ```{r tmbHist, tidy=FALSE}
 layout(matrix(1:2,nrow=1))

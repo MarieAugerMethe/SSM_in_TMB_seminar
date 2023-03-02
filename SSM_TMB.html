@@ -1099,10 +1099,10 @@ are returned. This is because section K of the C++ code specifically
 states to return both. Because we used the same random seed as for the
 original simulation, you will get the same results.</p>
 <p>How can these simulation blocks be useful for model verification?</p>
-<p>Simulations can be used to assess whether we can estimate the
-parameter and states. Here, once you have define you code appropriately,
-you can simulate and check that your model can estimate the parameter
-and states in only a few lines of code.</p>
+<p>First, simulations can be used to assess whether we can estimate the
+parameter and states as we did above with our simulated data in R
+(e.g. comparing values used to simulate the data to the estimated
+values), but with only a few lines of code.</p>
 <p>Another simple, albeit often conservative, way to look at the model
 fit using simulations is to use the frequentist equivalent of posterior
 predictive measures. The idea is to define a test statistic (e.g., the
@@ -1134,8 +1134,8 @@ for(i in 1:nrep){ # For each replicate
 from the simulated data sets that are greater or equal to the test
 statistic value calculated from the observed data: <span class="math display">\[\begin{equation}
 p_C = Pr(T(\mathbf{y}^{i}) \geq
-T(\mathbf{y})|\hat{\boldsymbol{\theta}}_\textsc{mle}),
-\end{equation}\]</span> where <span class="math inline">\(\hat{\boldsymbol{\theta}}_\textsc{mle}\)</span> is
+T(\mathbf{y})|\hat{\boldsymbol{\theta}}_\text{mle}),
+\end{equation}\]</span> where <span class="math inline">\(\hat{\boldsymbol{\theta}}_\text{mle}\)</span> is
 the MLE value of <span class="math inline">\(\boldsymbol{\theta}\)</span>, <span class="math inline">\(T(\mathbf{y}^{i})\)</span> is the test statistic
 value of a replicate and <span class="math inline">\(T(\mathbf{y})\)</span> is the test statistic value
 for the observed data.</p>
