@@ -666,8 +666,7 @@ fMisTmb <- nlminb(mMisTmb$par, mMisTmb$fn, mMisTmb$gr)
 fMisTmb$message
 ```
 
-It looks like the optimizer converged to a solution, but as we can see below, the parameter estimates based on the previous set of initial values and those used above are quite different. The fact that the parameter values for
-$\alpha$ and $\beta$ are exactly the same as the input starting value should raise warning flags.
+It looks like the optimizer converged to a solution, but as we can see below, the parameter estimates based on the previous set of initial values and those used above are quite different. The fact that the parameter values for $\alpha$ and $\beta$ are exactly the same as the input starting value should raise warning flags.
 
 ```{r tmbP0comp, tidy=FALSE}
 c(New = fMisTmb$objective, Old = f4pTmb$objective)
@@ -717,9 +716,9 @@ Clearly, the observed measures are quite different from those generated from the
 
 ### Looking at model assumptions with residuals
 
-It is useful to look at the one-step-ahead residuals to assess model fit. See Auger-Méthé et al. 2021 for description of these residuals. The \texttt{TMB} function `oneStepPred` can be used to easily calculate the one-step-ahead residuals. The objects returned by `MakeADFun` can change (e.g., when we use `nlminb` on it). To be make sure that we are applying the function on the fitted model, let us rerun the functions `MakeADFun` and `nlminb` first.
+It is useful to look at the one-step-ahead residuals to assess model fit. See Auger-Méthé et al. 2021 for description of these residuals. The `TMB` function `oneStepPred` can be used to easily calculate the one-step-ahead residuals. The objects returned by `MakeADFun` can change (e.g., when we use `nlminb` on it). To be make sure that we are applying the function on the fitted model, let us rerun the functions `MakeADFun` and `nlminb` first.
 
-```{r tmb1saRes, tidy=FALSE}
+```{r tmb1saRes, tidy=FALSE, cache=TRUE}
 m2pTmb <- MakeADFun(data=dataTmb, parameters=par2pTmb, map=mapTmb, random= "z",
                   DLL= "toy2p", silent=TRUE)
 f2pTmb <- nlminb(m2pTmb$par, m2pTmb$fn, m2pTmb$gr)
@@ -728,7 +727,7 @@ res2pTmb <- oneStepPredict(m2pTmb, observation.name ="y",
 head(res2pTmb)
 ```
 
-It returns a matrix with columns that have the predicted observation value (column \texttt{mean}) and a column with the residuals (column \texttt{residual}). These are one-step-ahead residuals where you use observation up to time $t-1$, as such you cannot get residuals for the first observation. These one-step-ahead residuals should be distributed with a standard normal. Thus we can used the same type of diagnostics such as qqplots to check normality. We can also  use the autocorrelation function to look at unaccounted temporal correlation.
+It returns a matrix with columns that have the predicted observation value (column `mean`) and a column with the residuals (column `residual`). These are one-step-ahead residuals where you use observation up to time $t-1$, as such you cannot get residuals for the first observation. These one-step-ahead residuals should be distributed with a standard normal. Thus we can used the same type of diagnostics such as qqplots to check normality. We can also  use the autocorrelation function to look at unaccounted temporal correlation.
 
 ```{r tmbQQplot, tidy=FALSE}
 layout(matrix(1:2,nrow=1))
@@ -738,7 +737,7 @@ qqline(res2pTmb$residual, col="hotpink", lwd=2)
 acf(res2pTmb$residual)
 ```
 
-When we use \texttt{TMB}, it is important to assess whether the Laplace approximation is adequate. To check the Laplace approximation and simulation consistency, we can use the function \texttt{checkConsistency}. 
+When we use `TMB`, it is important to assess whether the Laplace approximation is adequate. To check the Laplace approximation and simulation consistency, we can use the function `checkConsistency`. 
 
 ```{r tmbConsistency, tidy=FALSE}
 set.seed(12345)
@@ -756,7 +755,7 @@ profLikSdp2pTmb <- tmbprofile(m2pTmb, "logSdP", trace=FALSE)
 plot(profLikSdp2pTmb, las=1)
 ```
 
-Note that what is returned is a plot of the negative log likelihood. We can see here a single minimum peak, suggesting that there is no identifiability issue. One can use the \texttt{tmbprofile} argument \texttt{ytol} to widen the range of parameter values explored.
+Note that what is returned is a plot of the negative log likelihood. We can see here a single minimum peak, suggesting that there is no identifiability issue. One can use the `tmbprofile` argument `ytol` to widen the range of parameter values explored.
 
 Now let us look at the likelihood profile of the parameters of the more flexible model, where we estimate the two standard deviations as well as $\alpha$ and $\beta$. This code may take a few minutes to run.
 
@@ -795,7 +794,7 @@ There are clear outliers, which are likely the results of observation error rath
 
 In Appendix S1 of Auger-Méthé et al. 2021, you can see how this movement compares to the GPS tracks.
 
-Here we will use the Argos data to estimate states at regular time intervals. So that the estimates are at the same time as the GPS data, we will estimate states once a day at 17:00. The following code chunk is just data manipulation to create the $i$ index and the time proportion $j_i$ so that we relate the time of the observed Argos locations to the time of the estimated states and GPS data.
+Here we will use the Argos data to estimate states at regular time intervals. We will estimate states once a day at 17:00. The following code chunk is just data manipulation to create the $i$ index and the time proportion $j_i$ so that we relate the time of the observed Argos locations to these fix time intervals.
 
 ```{r time.interval, tidy=FALSE}
 # Transform DateTime in R date.time class
@@ -1018,7 +1017,6 @@ Here are a few additional notes about TMB/C++:
 Again, the next step is to compile the C++ code and load the compiled function. This code may take a few minutes to run and may print warnings.
 
 ```{r polar.bear.comp, results="hide"}
-library(TMB)
 compile("dcrw.cpp", flags="-Wno-unused-variable")
 dyn.load(dynlib("dcrw"))
 ```
@@ -1058,14 +1056,14 @@ mPbTmb <- MakeADFun(dataPbTmb, parPbTmb, random="z", DLL="dcrw", silent=TRUE,
 
 Using the created object, we can find the MLE with \texttt{nlminb}.
 
-```{r polar.bear.nlminb}
+```{r polar.bear.nlminb, cache=TRUE}
 fPbTmb <- nlminb(mPbTmb$par, mPbTmb$fn, mPbTmb$gr)
 fPbTmb$message
 ```
 
 Looks like it converged, so let us now look at the estimated parameters using `sdreport`.
 
-```{r pbTMBpar}
+```{r pbTMBpar, cache=TRUE}
 parestPbTmb <- summary(sdreport(mPbTmb))
 parestPbTmb[c("gamma", "sdLon", "sdLat", "psiLon", "psiLat"),]
 ```
