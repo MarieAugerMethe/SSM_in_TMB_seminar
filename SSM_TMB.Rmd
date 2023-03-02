@@ -15,7 +15,12 @@ This tutorial is heavily based on Appendix S1 (Supporting Information) from Auge
 
 # Important installation info (to do before seminar!)
 
+## Installing TMB and Xcode or R tools
+
 Because `TMB` use C++ code, the installation of the package requires additional steps. The package is available on CRAN https://cran.r-project.org/web/packages/TMB/index.html, however your computer needs to be set up so you can compile the C++ code. You can find installation information at: https://github.com/kaskr/adcomp/wiki/Download. Briefly, if you are Mac user, you will need to install the Xcode developer tools (freely available via the App store). With older versions of Mac OS, you may run into problems with the Fortran compiler. For solutions, see the link above and this link https://mac.r-project.org/tools/. If you are a Windows user, you will need to install Rtools: https://cran.r-project.org/bin/windows/Rtools/. You can find guidelines on how to install `TMB` on a Windows machine here: https://github.com/kaskr/adcomp/wiki/Windows-installation.
+
+## Donwloading data from dryad
+
 
 
 # Introducing the method with a simple univariate linear Gaussian state-space models
@@ -801,61 +806,35 @@ We can see that for this more complex model we have estimation problems. The lik
 
 As mentioned in Appendix S3 of Auger-Méthé et al. 2021, this identifiability problem appears to be mostly occurring when $z_0=0$.
 
-\section{Polar bear movement data}
+# State-space model from Argos movement data: a polar bear example
 
-Dr. Andrew Derocher (University of Alberta, Canada) shared one movement track of a polar bear with a collar that provided both Argos data and GPS data. This provides us a unique opportunity to fit the model to error-prone Argos data and check the state estimates with the GPS data, see \citet{AugerMethe-etal-2017}. This dataset \citep{AugerMethe-Derocher-2021} is available through Dryad (doi:10.5061/dryad.4qrfj6q96).
+Using the data set available through Dryad Auger-Méthé and Derocher (2021) doi:10.5061/dryad.4qrfj6q96, we will explore a classic state-space model for Argos movement data, which is highly error prone. 
 
-Let us load and investigate the Argos data first.
+Let us load the Argos data.
 
-<<dataPbA, cache=TRUE>>=
+```{r polar.bear.data}
 # Read the data
 dataPbA <- read.csv("Data/PB_Argos.csv")
 # Look at what it contains
 head(dataPbA)
-@
+```
 
 We can see that we have a column with the date and time, one with the Argos quality class, one with the latitude and one with the longitude.
+
 Let us plot the data.
 
-<<pbArgosPlot, cache=TRUE, tidy=FALSE, fig.cap="Observed Argos polar bear locations.">>=
+```{r polar.bear.plot, tidy=FALSE}
 plot(dataPbA[,c("Lon", "Lat")], 
      pch=3, cex=0.7, col = "blue", ty="o", lty=3, las=1)
-@
+```
 
 There are clear outliers, which are likely the results of observation error rather than a bear moving at record speed.
 
-Now let us load the GPS data.
+In Appendix S1 of Auger-Méthé et al. 2021, you can see how this movement compares to the GPS tracks.
 
-<<dataPbG, cache=TRUE>>=
-# Read the GPS data
-dataPbG <- read.csv("Data/PB_GPS.csv")
-# Look at what it contains
-head(dataPbG)
-@
+Here we will use the Argos data to estimate states at regular time intervals. So that the estimates are at the same time as the GPS data, we will estimate states once a day at 17:00. The following code chunk is just data manipulation to create the $i$ index and the time proportion $j_i$ so that we relate the time of the observed Argos locations to the time of the estimated states and GPS data.
 
-Here again we have a column with the date and time, one with the latitude and one with the longitude.
-
-Let us plot the two types of data together.
-
-<<pbGPSPlot, tidy = FALSE, fig.cap="Observed Argos polar bear locations with true locations (GPS points) overlaid on top.">>=
-plot(dataPbG[,c("Lon", "Lat")], 
-     pch=19, cex=0.7, col = "red", ty="o", las=1,
-     ylim=c(min(dataPbG$Lat),max(dataPbG$Lat)+0.4))
-points(dataPbA[,c("Lon", "Lat")], 
-       pch=3, cex=0.7, col = "blue", ty="o", lty=3)
-legend("top",
-       legend = c("Obs. (Argos)", "True states (GPS)"),
-       pch = c(3, 19),
-       col = c("blue", "red"),
-       lty = c(3, 1),
-       horiz=TRUE, bty="n", cex=0.9)
-@
-
-We can see that the movement according to Argos data is much more erratic than GPS data, which is entirely due to the observation error associated with Argos data.
-
-Here we will use the Argos data to estimate states at regular time intervals and we will use the GPS data to investigate the model's capacity to estimates the states. So that the estimates are at the same time as the GPS data, we will estimate states once a day at 17:00. The following code chunk is just data manipulation to create the $i$ index and the time proportion $j_i$ so that we relate the time of the observed Argos locations to the time of the estimated states and GPS data.
-
-<<tint, tidy=FALSE, cache=TRUE>>=
+```{r time.interval, tidy=FALSE}
 # Transform DateTime in R date.time class
 dataPbA$Time <- as.POSIXlt(dataPbA$DateTime,
                        format="%Y.%m.%d %H:%M:%S", tz="UTC")
@@ -875,11 +854,11 @@ dataPbA$idx <- findInterval(dataPbA$Time,allDays) + 1
 # Checking how far from the z_t y is
 dataPbA$ji <- as.numeric(24-difftime(allDays[dataPbA$idx],
                                  dataPbA$Time, units="hours"))/24
-@
+```
 
-It is customary to use error data to help the estimation process. Here we create a matrix with the error values, these values are based on those used in the package \texttt{bsam}, see below. We have done a few changes to the values used in \texttt{bsam}. In particular, the skewness of the t-distribution is undefined when the degree of freedom is $\leq 3$. We have thus set any degree of freedom values smaller or equal to 3 to 3.00001.
+It is customary to use error data to help the estimation process. Here we create a matrix with the error values, these values are based on those used in the package `bsam` (Jonsen et al ADD). We have done a few changes to the values used in `bsam`. In particular, the skewness of the t-distribution is undefined when the degree of freedom is $\leq 3$. We have thus set any degree of freedom values smaller or equal to 3 to 3.00001.
 
-<<ArgosError, tidy=FALSE, cache=TRUE>>=
+```{r Argos.error, tidy=FALSE}
 ArgosC <- matrix(nrow=6, ncol=4)
 colnames(ArgosC) <- c("TLon","NuLon","TLat","NuLat")
 ArgosC[,"TLon"] <- c(0.037842190, 0.004565261, 0.019461776,
@@ -892,25 +871,19 @@ ArgosC[,"NuLat"] <- c(3.00001, 3.00001, 3.00001,
                       3.896554, 6.314726, 3.00001)
 rownames(ArgosC) <- c("B", "A", "0",
                       "1", "2", "3")
-@
+```
 
 Now we create new columns in the data set that indicate the standard deviation and the degrees of freedom to use with each location.
 
-<<pbArgosC, cache=TRUE>>=
+```{r polar.bear.Argos.Cat}
 dataPbA$ac <- ArgosC[as.character(dataPbA$QualClass),]
-@
+```
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Fitting the model and checking model fit}
+## Fitting the model and checking model fit
 
-A very similar model to the one above can be easily fitted using a package called \texttt{bsam}, which was specifically designed for this model and its extensions. But here we will only explore a few of the generic tools we have presented above.
+Again, the first thing we need to do to be able to fit the model in `TMB` is to create a file that will contain the C++ code to evaluate the negative log-likelihood value of the model. We will name the file **dcrw.cpp**.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{TMB}
-
-As for the toy example, the first thing we need to do to be able to fit the model in \texttt{TMB} is to create a file that will contain the \texttt{C++} code to evaluate the negative log-likelihood value of the model. We will name the file \emph{dcrw.cpp}.
-
-<<dcrw.cpp, write_chunk=TRUE, eval=FALSE, tidy=FALSE, engine='Rcpp'>>=
+```{Rcpp dcrw.cpp, write_chunk=TRUE, eval=FALSE, tidy=FALSE}
 /*----------------------- SECTION A --------------------------*/
 // State that we need the TMB package
 #include <TMB.hpp>
@@ -1061,9 +1034,9 @@ Type objective_function<Type>::operator() ()
   return nll;
 }
 
-@
+```
 
-See section \ref{tmbToy} for some of the basic rules of \texttt{C++} and \texttt{TMB}. Here are a few additional notes:
+Here are a few additional notes about TMB/C++:
 
 \begin{itemize}
 \item While this is not necessary here, given that we are assuming that there is no correlation in the movement in the latitude and longitude coordinates, we are using a bivariate normal rather than two univariate normal distribution. We are using it here in part because the multivariate normal is a very useful distribution, and we wanted to demonstrate how it works. To be able to evaluate the probability density function of a multivariate normal, we need to use the \texttt{namespace density} as we see in section A. In section E, we then create a covariance matrix that we assign to the multivariate normal. Note that the mean of the multivariate normal is 0 and this cannot be changed and that it will return the negative log density.
