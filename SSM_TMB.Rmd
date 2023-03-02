@@ -1054,7 +1054,7 @@ Here are a few additional notes about TMB/C++:
 
 Again, the next step is to compile the C++ code and load the compiled function. This code may take a few minutes to run and may print warnings.
 
-```{r polar.bear.comp, cache=TRUE, results="hide"}
+```{r polar.bear.comp, results="hide"}
 library(TMB)
 compile("dcrw.cpp", flags="-Wno-unused-variable")
 dyn.load(dynlib("dcrw"))
@@ -1155,13 +1155,13 @@ As we did for the toy model we can also check that the Laplace approximations ar
 
 Warning: this will take a few minutes to run.
 
-```{r polar.bear.consistency, cache=TRUE, tidy=FALSE, cache=TRUE}
+```{r polar.bear.consistency, tidy=FALSE, cache=TRUE}
 set.seed(987)
 consisPbTmb <- checkConsistency(mPbTmb, n=200)
 consisPbTmb
 ```
 
-Here, we can see that the p-value for the simulations is high, and above the 0.05 significance level, and thus we are confident that the simulation is consistent with the implemented negative log-likelihood function. The size of the estimated biases for the parameters are both small, indicating that Laplace approximation is not inducing large biases\footnote{If the function returns NA, install \texttt{TMB} from Github (\url{https://github.com/kaskr/adcomp/}) rather than from CRAN. If using a Mac, you may need to add SHLIB\_OPENMP\_CFLAGS= in the Makevars file.}. See \texttt{?checkConsistency} for more details.
+Here, we can see that the p-value for the simulations is high, and above the 0.05 significance level, and thus we are confident that the simulation is consistent with the implemented negative log-likelihood function. The size of the estimated biases for the parameters are small, indicating that Laplace approximation is not inducing large biases\footnote{If the function returns NA, install \texttt{TMB} from Github (\url{https://github.com/kaskr/adcomp/}) rather than from CRAN. If using a Mac, you may need to add SHLIB\_OPENMP\_CFLAGS= in the Makevars file.}. See `?checkConsistency` for more details.
 
 We can also now simulate from the model. Doing so will simulate a new movement path of the bear and a new set of associated observations.
 
