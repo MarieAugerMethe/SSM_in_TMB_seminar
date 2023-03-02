@@ -1256,19 +1256,25 @@ pbResLat <- pbRes[seq(4, nrow(pbRes), by=2),
 
 Now let us visually assess the residuals.
 
-CHANGE TO QQPLOT
-
 ```{r pbTmbResidPlot, tidy=FALSE, cache=TRUE}
-layout(matrix(1:6, nrow=2))
+layout(matrix(1:8, nrow=2))
+# General look at residuals
 plot(pbResLon, pch=19, cex=0.5,
      ylab="Residuals - Lon", las=1)
 abline(h=0, col="hotpink")
 plot(pbResLat, pch=19, cex=0.5,
      ylab="Residuals - Lat", las=1)
 abline(h=0, col="hotpink")
+
+# Check autocorrelation
 acf(pbResLon, main="", ylab="ACF - Lon")
 acf(pbResLat, main="", ylab="ACF - Lat")
 
+# Check normality
+qqnorm(pbResLon)
+qqline(pbResLon)
+qqnorm(pbResLat)
+qqline(pbResLat)
 hist(pbResLon, breaks=40, freq = FALSE, 
      col="darkgrey", las=1,
      main="", ylab="Prob. - Lon")
@@ -1281,5 +1287,5 @@ curve(dnorm, -5, 5, add=TRUE,
       lwd=2, col="hotpink")
 ```
 
-Overall the residuals look pretty good. There is no obvious patterns in the residuals through time. There is no autocorrelation. The distribution of the residuals is close to a standard normal. The only sign of a slight problem is that the shape of the residuals is not exactly normal, with some thicker base. This could be due to a mismatch in the values assigned to the different quality categories, and is something worth looking into.
+Overall the residuals look pretty good. There is no obvious patterns in the residuals through time. There is no autocorrelation. The only sign of a slight problem is that their appears to be some deviation from normality. We can see this from the qqplots, and the histograms. This could be due to a mismatch in the values assigned to the different quality categories, and in a real analysis it would be worth looking into this issue further.
 
