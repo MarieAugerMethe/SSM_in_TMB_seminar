@@ -881,6 +881,8 @@ dataPbA$ac <- ArgosC[as.character(dataPbA$QualClass),]
 
 ## Fitting the model and checking model fit
 
+### Create the C++ code defining the negative log-likelihood
+
 Again, the first thing we need to do to be able to fit the model in `TMB` is to create a file that will contain the C++ code to evaluate the negative log-likelihood value of the model. We will name the file **dcrw.cpp**.
 
 ```{Rcpp dcrw.cpp, write_chunk=TRUE, eval=FALSE, tidy=FALSE}
@@ -1038,37 +1040,39 @@ Type objective_function<Type>::operator() ()
 
 Here are a few additional notes about TMB/C++:
 
-\begin{itemize}
-\item While this is not necessary here, given that we are assuming that there is no correlation in the movement in the latitude and longitude coordinates, we are using a bivariate normal rather than two univariate normal distribution. We are using it here in part because the multivariate normal is a very useful distribution, and we wanted to demonstrate how it works. To be able to evaluate the probability density function of a multivariate normal, we need to use the \texttt{namespace density} as we see in section A. In section E, we then create a covariance matrix that we assign to the multivariate normal. Note that the mean of the multivariate normal is 0 and this cannot be changed and that it will return the negative log density.
+- While this is not necessary here, given that we are assuming that there is no correlation in the movement in the latitude and longitude coordinates, we are using a bivariate normal rather than two univariate normal distribution. We are using it here in part because the multivariate normal is a very useful distribution, and we wanted to demonstrate how it works. To be able to evaluate the probability density function of a multivariate normal, we need to use `namespace density` as we see in section A. In section E, we then create a covariance matrix that we assign to the multivariate normal. Note that the mean of the multivariate normal is 0 and this cannot be changed and that it will return the negative log density.
 
-\item .row(i) and .col(i) will return the ith row or column of \texttt{PARAMETER\_MATRIX} and  \texttt{DATA\_MATRIX}. To be able to use .row() and.col on \texttt{DATA\_ARRAY}, we need to precede these calls by .matrix().
+- `.row(i)` and `.col(i)` will return the ith row or column of `PARAMETER\_MATRIX` and  `DATA\_MATRIX`. To be able to use `.row()` and `.col()` on `DATA\_ARRAY`, we need to precede these calls by `.matrix()`.
 
-\item We used a \texttt{DATA\_ARRAY} for the observations rather than say a \texttt{DATA\_MATRIX}. We did so because the indicator objects associated with the one-step-ahead residuals (here \texttt{DATA\_ARRAY\_INDICATOR}), can only be either a vector or an array. 
+- We used a `DATA\_ARRAY` for the observations rather than say a `DATA\_MATRIX`. We did so because the indicator objects associated with the one-step-ahead residuals (here `DATA\_ARRAY\_INDICATOR`), can only be either a vector or an array. 
 
-\item In sections L and M, we have to use \texttt{CppAD::Integer} to transform the \texttt{idx} values into integers. We need to do this because .row() methods can only take integers.
+- In sections L and M, we have to use `CppAD::Integer` to transform the `idx` values into integers. We need to do this because `.row()` methods can only take integers.
 
-\item We have created temporary objects in section J to be able to evaluate the densities.
+- We have created temporary objects in section J to be able to evaluate the densities.
 
-\end{itemize}
+### Compiling and loading the C++ code 
 
-Again, the next step is to compile the \texttt{C++} code and load the compiled function. This code may take a few minutes to run and may print warnings.
+Again, the next step is to compile the C++ code and load the compiled function. This code may take a few minutes to run and may print warnings.
 
-<<pbTMBcomp, cache=TRUE, results="hide">>=
+```{r polar.bear.comp, cache=TRUE, results="hide"}
 library(TMB)
 compile("dcrw.cpp", flags="-Wno-unused-variable")
 dyn.load(dynlib("dcrw"))
-@
+```
 
-Then, we need to prepare the data, by which we mean create one list that contains all of the data elements needed by \texttt{C++}. Here we need: 1) the matrix \texttt{y}, which contains the longitude and latitude of the locations; 2) the vector \texttt{idx}, which contains the index that relates the observation at time $i$ to the appropriate state time $t$; 3) the vector \texttt{ji}, which contains when the observation falls between $t-1$ and $t$; and 4) the matrix \texttt{ac}, which contains all of the error information for the given location. As a note, we are removing 1 from the index value \texttt{idx} because the index of \texttt{C++} starts a 0, not 1.
 
-<<pbTMBdp, cache=TRUE, tidy=FALSE>>=
+### Prepare data and set strating values for parameters
+
+Then, we need to prepare the data, by which we mean create one list that contains all of the data elements needed by C++. Here we need: 1) the matrix `y`, which contains the longitude and latitude of the locations; 2) the vector `idx`, which contains the index that relates the observation at time $i$ to the appropriate state time $t$; 3) the vector `ji`, which contains when the observation falls between $t-1$ and $t$; and 4) the matrix `ac`, which contains all of the error information for the given location. As a note, we are removing 1 from the index value `idx` because the index of C++ starts a 0, not 1.
+
+```{r polar.bear.prep, tidy=FALSE}
 dataPbTmb <- list(y = cbind(dataPbA$Lon, dataPbA$Lat),
                idx=dataPbA$idx-1, ji=dataPbA$ji, ac=dataPbA$ac)
-@
+```
 
-We then need to create a list with the starting values for the parameters, including the states. In section \ref{tmbToy}, we used 0 as starting values for all parameters and states. Here, to help the optimization, we will set the initial value of the states to be the values of the observed Argos location. This will just start the optimization at the good relative magnitude. We could have alternatively, scaled the model so to have transformed longitude and latitude values that are centered at 0.
+We then need to create a list with the starting values for the parameters, including the states. To help the optimization, we will set the initial value of the states to be the values of the observed Argos location. This will just start the optimization at the good relative magnitude. We could have alternatively, scaled the model so to have transformed longitude and latitude values that are centered at 0.
 
-<<pbTMBpp, cache=TRUE, tidy=FALSE>>=
+```{r polar.bear.initial.val, tidy=FALSE}
 # Setting the initial values for the state.
 # We use the 1st obs. location to start the optimization
 # at a relatively good place
@@ -1078,116 +1082,72 @@ zinitPbTmb <- matrix(as.numeric(dataPbA[1,c("Lon","Lat")]),
 parPbTmb <- list(logitGamma=0,
                logSdLon=0, logSdLat=0, logPsiLon=0, logPsiLat=0,
                z=zinitPbTmb)
-@
+```
 
-We have now all of the pieces needed to create the \texttt{TMB} object with \texttt{MakeADFun}, which will allow us to minimize the negative log likelihood. Note that for more complex model, it sometimes help to allow for more iterations in the inner maximization. This can slow down the process, but here if we use the default maximum number of inner iterations, we will get the error:
+### Fitting the state-space model to data
 
-<<pbTMBerror, cache=TRUE, echo=FALSE>>=
-objPB0 <- MakeADFun(dataPbTmb, parPbTmb, random="z", DLL="dcrw", silent=TRUE)
-optPB0 <- nlminb(objPB0$par, objPB0$fn, objPB0$gr)
-@
+We have now all of the pieces needed to create the object with \texttt{MakeADFun}, which will allow us to minimize the negative log likelihood. Note that for more complex model, it sometimes help to allow for more iterations in the inner maximization. This can slow down the process, but here if we use the default maximum number of inner iterations, we will get the error. Thus, we increase the number of inner iterations to 5000 using `inner.control`.
 
-Thus, we increase the number of inner iterations to 5000 using \texttt{inner.control}.
-
-<<pbTMBmadf, cache=TRUE>>=
+```{r polar.bear.MakeADFun}
 mPbTmb <- MakeADFun(dataPbTmb, parPbTmb, random="z", DLL="dcrw", silent=TRUE,
                     inner.control = list(maxit=5000))
-@
+```
 
 Using the created object, we can find the MLE with \texttt{nlminb}.
 
-<<pbTMBoptim, cache=TRUE>>=
+```{r polar.bear.nlminb}
 fPbTmb <- nlminb(mPbTmb$par, mPbTmb$fn, mPbTmb$gr)
 fPbTmb$message
-@
+```
 
-Looks like it converged, so let us now look at the estimated parameters using \texttt{sdreport} just as in section \ref{tmbToy}.
+Looks like it converged, so let us now look at the estimated parameters using `sdreport`.
 
-<<pbTMBpar, cache=TRUE>>=
+```{r pbTMBpar}
 parestPbTmb <- summary(sdreport(mPbTmb))
 parestPbTmb[c("gamma", "sdLon", "sdLat", "psiLon", "psiLat"),]
-@
+```
 
 So it appears that the movement of this bear is only partially dependent on the movement from the previous step, i.e., $\gamma =$ \Sexpr{round(parestPbTmb["gamma",1],3)}.
 Interestingly, the process variation is quite different in the latitude and longitude direction.
 This could be due to the fact that one degree of latitude and one degree of longitude are not necessarily covering equivalent distance.
 We see also that the correction factors for the longitude and latitude are quite different from one another and might point to the advantage of estimating one for each coordinate.
 
-Now let us look at the state estimates. To extract the state value itself, we use \texttt{\$env\$parList()}. To extract the standard error, we use the matrix returned by \texttt{summary(sdreport())} above.
+Now let us look at the state estimates. To extract the state value itself, we use `\$env\$parList()`. To extract the standard error, we use the matrix returned by `summary(sdreport())` above.
 
-<<pbTMBst, cache=TRUE>>=
+```{r polar.bear.states}
 # Get the point value
 zsPbTmb <- mPbTmb$env$parList()$z
 # Get the standard errors
 zsvPbTmb <- parestPbTmb[rownames(parestPbTmb)%in%"z",]
 zsvPbTmb <- cbind(zsvPbTmb[1:(nrow(zsvPbTmb)/2),2], 
                   zsvPbTmb[(1+nrow(zsvPbTmb)/2):nrow(zsvPbTmb),2])
-@
+```
 
-Now, let us compare the estimated states (i.e., the estimated polar bears locations) to the GPS locations. As GPS data often have missing value, this requires making sure we are comparing the locations at the same time step.
+In Appendix S1 of Auger-Méthé et al. 2021, we compare the estimated locations with this model to the GPS data, and see that the are quite similar.
 
-<<pbEsttmbt, cache=TRUE, tidy=FALSE>>=
-# Find the index to match GPS time to estimate time
-gpsIndex <- match(as.Date(dataPbG$DateTime, format="%Y.%m.%d %T"),
-                  as.Date(allDays))
-@
+### Checking the model fit
 
-Let us take a quick look to see if the estimated values are close to the GPS values.
+It is good to look at the likelihood profile, and we can use again the function `tmbprofile`. 
 
-<<pbTMBestc, cache=TRUE, tidy=FALSE>>=
-# Lon
-head(cbind(zsPbTmb[gpsIndex,1], dataPbG$Lon))
-# Lat
-head(cbind(zsPbTmb[gpsIndex,2], dataPbG$Lat))
-@
+As it takes a while to run, we will look at only one parameter. In a real analysis, you would look at all of them. To d so, uncomment the other lines
 
-It looks pretty good. Now let us compute the root mean square prediction error.
-
-<<pbTMBrmse, cache=TRUE, tidy=FALSE>>=
-sqrt(colSums((zsPbTmb[gpsIndex,] -
-                dataPbG[,c("Lon", "Lat")])^2)/nrow(dataPbG))
-@
-
-So less than a degree in both case. Because latitude and longitude are hard to easily interpret, let us look at it on a map.
-
-<<pbtmbplots, cache=TRUE, tidy=FALSE, fig.cap="Comparison of the estimated locations and the known true locations (GPS points).">>=
-plot(dataPbG[,c("Lon", "Lat")], 
-     pch=19, cex=0.7, col = "red", ty="o", las=1,
-     ylim=c(min(dataPbG$Lat),max(dataPbG$Lat)+0.4))
-points(dataPbA[,c("Lon", "Lat")], 
-       pch=3, cex=0.7, col = "blue", ty="o", lty=3)
-lines(zsPbTmb, cex=0.5, 
-      col="darkgoldenrod1", lwd = 2)
-legend("top",
-       legend = c("Obs. (Argos)", "True states (GPS)", "Smooth. state"),
-       pch = c(3, 19, NA),
-       col = c("blue", "red", "darkgoldenrod1"),
-       lwd = c(1, 1, 2), lty = c(3, 1, 1),
-       horiz=TRUE, bty="n", cex=0.9)
-
-@
-
-Clearly, the estimated locations are much closer to the GPS locations than the Argos locations.
-
-It is good to look at the likelihood profile, and we can use again the function \texttt{tmbprofile} as in section \ref{S.tmb.prof}.
-
-Warnings: this can take a few minutes to run.
-
-<<pbtmbProf, cache=TRUE, tidy=TRUE, echo=-1, fig.cap="Profile of the negative log likelihood of the parameters of the DCRW.">>=
-layout(matrix(c(1,6,2:5), nrow=3, byrow=TRUE))
-# Get the profile values
+```{r pbtmbProf, tidy=TRUE, cache=TRUE}
+# Gamma
 proflGammaPbTmb <- tmbprofile(mPbTmb, "logitGamma", trace=FALSE)
-proflSdlonPbTmb <- tmbprofile(mPbTmb, "logSdLon", trace=FALSE)
-proflSdlatPbTmb <- tmbprofile(mPbTmb, "logSdLat", trace=FALSE)
-proflPsilonPbTmb <- tmbprofile(mPbTmb, "logPsiLon", trace=FALSE)
-proflPsilatPbTmb <- tmbprofile(mPbTmb, "logPsiLat", trace=FALSE)
-# Plot the profiles
 plot(proflGammaPbTmb)
-plot(proflSdlonPbTmb)
-plot(proflSdlatPbTmb)
-plot(proflPsilonPbTmb)
-plot(proflPsilatPbTmb)
-@
+
+# Sd lon and lat
+# proflSdlonPbTmb <- tmbprofile(mPbTmb, "logSdLon", trace=FALSE)
+# plot(proflSdlonPbTmb)
+# proflSdlatPbTmb <- tmbprofile(mPbTmb, "logSdLat", trace=FALSE)
+# plot(proflSdlatPbTmb)
+
+# psi lon and lat
+# proflPsilonPbTmb <- tmbprofile(mPbTmb, "logPsiLon", trace=FALSE)
+# plot(proflPsilonPbTmb)
+# proflPsilatPbTmb <- tmbprofile(mPbTmb, "logPsiLat", trace=FALSE)
+# plot(proflPsilatPbTmb)
+```
 
 All of these profiles look good.
 
@@ -1195,23 +1155,23 @@ As we did for the toy model we can also check that the Laplace approximations ar
 
 Warning: this will take a few minutes to run.
 
-<<pbtmbCheckCons, cache=TRUE, tidy=FALSE>>=
+```{r polar.bear.consistency, cache=TRUE, tidy=FALSE, cache=TRUE}
 set.seed(987)
 consisPbTmb <- checkConsistency(mPbTmb, n=200)
 consisPbTmb
-@
+```
 
 Here, we can see that the p-value for the simulations is high, and above the 0.05 significance level, and thus we are confident that the simulation is consistent with the implemented negative log-likelihood function. The size of the estimated biases for the parameters are both small, indicating that Laplace approximation is not inducing large biases\footnote{If the function returns NA, install \texttt{TMB} from Github (\url{https://github.com/kaskr/adcomp/}) rather than from CRAN. If using a Mac, you may need to add SHLIB\_OPENMP\_CFLAGS= in the Makevars file.}. See \texttt{?checkConsistency} for more details.
 
 We can also now simulate from the model. Doing so will simulate a new movement path of the bear and a new set of associated observations.
 
-<<pbtmbSim, cache=TRUE, tidy=FALSE>>=
+```{r polar.bear.sim, tidy=FALSE, cache=TRUE}
 simPbTmb <- mPbTmb$simulate()
-@
+```
 
 Let us plot the results.
 
-<<pbtmbSimPlot, cache=TRUE, tidy=FALSE, fig.cap="Movement path simulated from the fitted model.">>=
+```{r polar.bear.sim.fig, tidy=FALSE, cache=TRUE}
 plot(simPbTmb$z, 
      pch=19, cex=0.7, col = "red", ty="o", las=1,
      xlab="Longitude", ylab="Latitude",
@@ -1224,13 +1184,16 @@ legend("top",
        col = c("blue", "red"),
        lty = c(3, 1),
        horiz=TRUE, bty="n", cex=0.9)
-@
+```
 
 We could easily use these simulations to assess, at least informally, whether the parameters are estimable.
 
-We can now look at the one-step-ahead residuals. Because the indicator variable used to keep track of the observations to remove during the calculation of one-step-ahead residuals is an array in the \texttt{C++} code, it is important to make sure the index used in the \texttt{subset} argument correctly describes the order in which the observations are added. When a matrix is transformed into an array, the first column is collated to the second column by default. As such, we want to create an index that goes in sequence from longitude to latitude one time step at a time.
+TO DO
 
-<<pbTmbResidIndex, cache=TRUE, tidy=FALSE>>=
+
+We can now look at the one-step-ahead residuals. Because the indicator variable used to keep track of the observations to remove during the calculation of one-step-ahead residuals is an array in the C++ code, it is important to make sure the index used in the `subset` argument correctly describes the order in which the observations are added. When a matrix is transformed into an array, the first column is collated to the second column by default. As such, we want to create an index that goes in sequence from longitude to latitude one time step at a time.
+
+```{r pbTmbResidIndex, tidy=FALSE, cache=TRUE}
 # Argos data as a matrix
 head(dataPbTmb$y)
 # Argos data when transformed as a array
@@ -1240,31 +1203,33 @@ head(array(dataPbTmb$y))
 # that describes the order of observation to add
 pbKeepInd <- as.vector(t(matrix(1:length(dataPbTmb$y), ncol=2)))
 head(pbKeepInd)
-@
+```
 
-Now we can use the function \texttt{oneStepPredict} to calculate the one-step-ahead residuals. 
+Now we can use the function `oneStepPredict` to calculate the one-step-ahead residuals. 
 
 Warning: this will take a few minutes to run.
 
-<<pbTmbResidy, cache=TRUE, echo=TRUE, include=TRUE>>=
-pbRes <- oneStepPredict(mPbTmb, observation.name ="y", 
-                        data.term.indicator="keep", 
+```{r pbTmbResidy, cache=TRUE}
+pbRes <- oneStepPredict(mPbTmb, observation.name = "y", 
+                        data.term.indicator = "keep", 
                         discrete=FALSE,
-                        subset=pbKeepInd, trace=FALSE)
-@
+                        subset = pbKeepInd, trace=FALSE)
+```
 
-We will separate the residuals for the longitude and latitude. The residuals will be ordered in the same way as \texttt{pbKeepInd}, and the first two residuals are not well defined for this model.
+We will separate the residuals for the longitude and latitude. The residuals will be ordered in the same way as `pbKeepInd`, and the first two residuals are not well defined for this model.
 
-<<pbTmbosasep, cache=TRUE, tidy=FALSE>>=
+```{r pbTmbosasep, tidy=FALSE, cache=TRUE}
 pbResLon <- pbRes[seq(3, nrow(pbRes), by=2),
                   "residual"]
 pbResLat <- pbRes[seq(4, nrow(pbRes), by=2),
                   "residual"]
-@
+```
 
 Now let us visually assess the residuals.
 
-<<pbTmbResidPlot, cache=TRUE, tidy=FALSE, fig.cap="One-step-ahead residuals for the DCRW applied to the polar bear Argos data.", echo=-c(1)>>=
+CHANGE TO QQPLOT
+
+```{r pbTmbResidPlot, tidy=FALSE, cache=TRUE}
 layout(matrix(1:6, nrow=2))
 plot(pbResLon, pch=19, cex=0.5,
      ylab="Residuals - Lon", las=1)
@@ -1285,7 +1250,7 @@ hist(pbResLat, breaks=40, freq = FALSE,
      main="", ylab="Prob. - Lat")
 curve(dnorm, -5, 5, add=TRUE, 
       lwd=2, col="hotpink")
-@
+```
 
 Overall the residuals look pretty good. There is no obvious patterns in the residuals through time. There is no autocorrelation. The distribution of the residuals is close to a standard normal. The only sign of a slight problem is that the shape of the residuals is not exactly normal, with some thicker base. This could be due to a mismatch in the values assigned to the different quality categories, and is something worth looking into.
 
