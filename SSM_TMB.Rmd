@@ -632,7 +632,7 @@ Another simple, albeit often conservative, way to look at the model fit using si
 
 Note here we will use the parameter values we estimated for this simple model above.
 
-```{r tmbTestStat, tidy=FALSE}
+```{r tmbTestStat, tidy=FALSE, cache=TRUE}
 nrep <- 200 # Number of replicates
 set.seed(999) # Set the random seed to be able to reproduce the simulation
 # Create matrix to keep track of replicate test statistic values
@@ -1123,6 +1123,8 @@ zsvPbTmb <- cbind(zsvPbTmb[1:(nrow(zsvPbTmb)/2),2],
                   zsvPbTmb[(1+nrow(zsvPbTmb)/2):nrow(zsvPbTmb),2])
 ```
 
+PLOT THE RESULTS
+
 In Appendix S1 of Auger-Méthé et al. 2021, we compare the estimated locations with this model to the GPS data, and see that the are quite similar.
 
 ### Checking the model fit
@@ -1153,11 +1155,11 @@ All of these profiles look good.
 
 As we did for the toy model we can also check that the Laplace approximations are good and that our simulations are fitted model. Here because it is a quite complex model, we have increased the number of simulations to 200, to help increase the power of the test.
 
-Warning: this will take a few minutes to run.
+Warning: this process takes time to run. To make it manageable for this tutorial, we will only look at `n=15` simulations, but a higher number should be used when doing a real analysis.
 
 ```{r polar.bear.consistency, tidy=FALSE, cache=TRUE}
 set.seed(987)
-consisPbTmb <- checkConsistency(mPbTmb, n=200)
+consisPbTmb <- checkConsistency(mPbTmb, n=15)
 consisPbTmb
 ```
 
@@ -1166,6 +1168,7 @@ Here, we can see that the p-value for the simulations is high, and above the 0.0
 We can also now simulate from the model. Doing so will simulate a new movement path of the bear and a new set of associated observations.
 
 ```{r polar.bear.sim, tidy=FALSE, cache=TRUE}
+set.seed(7263)
 simPbTmb <- mPbTmb$simulate()
 ```
 
@@ -1179,7 +1182,7 @@ plot(simPbTmb$z,
 points(simPbTmb$y, 
        pch=3, cex=0.7, col = "blue", ty="o", lty=3)
 legend("top",
-       legend = c("Obs.", "True states"),
+       legend = c("Sim. Obs.", "Simulated latent states"),
        pch = c(3, 19),
        col = c("blue", "red"),
        lty = c(3, 1),
@@ -1188,8 +1191,34 @@ legend("top",
 
 We could easily use these simulations to assess, at least informally, whether the parameters are estimable.
 
-TO DO
+Warning: this process takes time to run, and we will use a low number of replicates (`nrep=50`) to make it manageable for this tutorial. In a real analysis, we would increase the number of replicates.
 
+```{r polar.bear.sim.assess, tidy=FALSE, cache=TRUE}
+nrep <- 50 # Number of replicates
+set.seed(121212) # Set the random seed to be able to reproduce the simulation
+# Create matrix to keep track of replicate test statistic values
+rep.test.stat <- matrix(NA, nrow=nrep, ncol=2)
+colnames(rep.test.stat) <- c("LonSD", "LatSD")
+for(i in 1:nrep){ # For each replicate
+  yrep <- mPbTmb$simulate()$y # simulate observations
+  rep.test.stat[i, "LonSD"] <- sd(yrep[,1])
+  rep.test.stat[i, "LatSD"] <- sd(yrep[,2])
+}
+# Plot the simulated test statistics, and overlay the observed test statistics values
+layout(matrix(1:2,nrow=1))
+# Simulated test statistics vs observed test statistics
+hist(rep.test.stat[,"LonSD"], breaks=30,
+     main = "", las=1, col="darkgrey",
+     xlab = expression(T(y^{i})))
+abline(v=sd(dataPbTmb$y[,1]), col="hotpink", lwd=4)
+title("SD Lon. Obs.", line=-1.5, adj=0.9)
+hist(rep.test.stat[,"LatSD"], breaks=30,
+     main = "", las=1, col="darkgrey",
+     xlab = expression(T(y^{i})))
+abline(v=sd(dataPbTmb$y[,2]), col="hotpink", lwd=4)
+title("SD Lat. Obs.", line=-1.5, adj=0.9)
+```
+Here, we can see that the observed test statistics appear to be in line with the simulated test statistics value. These results suggest that there is no obvious problems with the model, but keep in mind that this is a conservative test, and that we have only explored two test statistics (the standard deviation of the longitude and latitude values).
 
 We can now look at the one-step-ahead residuals. Because the indicator variable used to keep track of the observations to remove during the calculation of one-step-ahead residuals is an array in the C++ code, it is important to make sure the index used in the `subset` argument correctly describes the order in which the observations are added. When a matrix is transformed into an array, the first column is collated to the second column by default. As such, we want to create an index that goes in sequence from longitude to latitude one time step at a time.
 
